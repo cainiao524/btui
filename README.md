@@ -30,6 +30,9 @@ scripts/release.mjs      生成发布树、同步发布仓库
 
 共享代码用 `@backend/<模块>` 引用后端适配层。新增后端专属能力时，在每个后端都导出同名模块（不支持的后端导出空实现），两个后端各自 typecheck，缺一个就会报错。
 
+- **能力开关**：`config.ts` 的 `capabilities` 声明后端支持哪些功能（自动管理、顺序下载、超级做种、单独下载路径、分类、高级添加选项）。共享界面按开关显示，不会出现点了只报错或被静默忽略的选项。
+- **mock 契约**：`src/lib/backend-contract.ts` 要求每个后端的 `rpc-client-mock.ts` 实现真实客户端的全部公开方法，否则 typecheck 失败；`backend-contract.test.ts` 再在运行时检查 demo 操作不会抛错。
+
 ## 开发
 
 ```bash

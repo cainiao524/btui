@@ -40,6 +40,7 @@ export interface TorrentFilterOptions {
   trackerFilter?: string[]
   dirFilter?: string[]
   labelFilter?: string[]
+  categoryFilter?: string[]
   translateStatus: (statusKey: string) => string
 }
 
@@ -94,6 +95,7 @@ export interface TorrentOverview {
   trackers: FacetCount[]
   downloadDirs: FacetCount[]
   labels: FacetCount[]
+  categories: FacetCount[]
 }
 
 function toFacetCounts(counts: Map<string, number>): FacetCount[] {
@@ -111,6 +113,7 @@ export function getTorrentOverview(torrents: Torrent[]): TorrentOverview {
   const trackers = new Map<string, number>()
   const downloadDirs = new Map<string, number>()
   const labels = new Map<string, number>()
+  const categories = new Map<string, number>()
 
   for (const torrent of torrents) {
     if (torrent.rateDownload > 0 || torrent.rateUpload > 0) statusCounts.active += 1
@@ -121,6 +124,7 @@ export function getTorrentOverview(torrents: Torrent[]): TorrentOverview {
 
     new Set(torrent.trackerStats?.map((stat) => stat.host).filter(Boolean)).forEach((host) => increment(trackers, host))
     if (torrent.downloadDir) increment(downloadDirs, torrent.downloadDir)
+    if (torrent.category) increment(categories, torrent.category)
     new Set(torrent.labels?.map(parseTorrentLabel).filter(Boolean)).forEach((label) => increment(labels, label))
   }
 
@@ -129,6 +133,7 @@ export function getTorrentOverview(torrents: Torrent[]): TorrentOverview {
     trackers: toFacetCounts(trackers),
     downloadDirs: toFacetCounts(downloadDirs),
     labels: toFacetCounts(labels),
+    categories: toFacetCounts(categories),
   }
 }
 
@@ -139,6 +144,7 @@ export function filterTorrents(torrents: Torrent[], options: TorrentFilterOption
     trackerFilter = [],
     dirFilter = [],
     labelFilter = [],
+    categoryFilter = [],
     translateStatus,
   } = options
   const statusLower = statusFilter?.toLowerCase()
@@ -163,6 +169,7 @@ export function filterTorrents(torrents: Torrent[], options: TorrentFilterOption
 
     if (trackerFilter.length > 0 && !torrent.trackerStats?.some((stat) => trackerFilter.includes(stat.host))) return false
     if (dirFilter.length > 0 && !dirFilter.includes(torrent.downloadDir)) return false
+    if (categoryFilter.length > 0 && !categoryFilter.includes(torrent.category ?? "")) return false
     if (labelFilter.length > 0 && !torrent.labels?.some((label) => labelFilter.includes(parseTorrentLabel(label)))) return false
     if (searchLower && !torrent.name.toLowerCase().includes(searchLower)) return false
 

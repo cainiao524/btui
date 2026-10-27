@@ -16,4 +16,12 @@ export const APP_CONFIG = {
     format: "qbittorrent-next-ui-settings",
     key: "qbittorrent",
   },
+  capabilities: {
+    autoManagement: true,
+    piecePriorityToggles: true,
+    superSeeding: true,
+    separateDownloadPath: true,
+    categories: true,
+    advancedAddOptions: true,
+  },
 } satisfies BackendConfig

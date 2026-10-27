@@ -20,6 +20,9 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { LocationInput } from "@/components/location-input"
 import { rpc } from "@backend/rpc-client"
+import { APP_CONFIG } from "@/lib/config"
+
+const { capabilities } = APP_CONFIG
 import { exportTorrentFile } from "@/lib/torrent-export"
 import { useI18n } from "@/lib/i18n-context"
 import type { Torrent, TorrentId } from "@/lib/rpc-types"
@@ -86,7 +89,7 @@ export function AdvancedTorrentMenu({ ids, torrent, onSuccess, onExport, trigger
     setBusy(true)
     try {
       await rpc.setTorrentSavePath(ids, savePath.trim())
-      await rpc.setTorrentDownloadPath(ids, downloadPath.trim())
+      if (capabilities.separateDownloadPath) await rpc.setTorrentDownloadPath(ids, downloadPath.trim())
       toast.success(t("advanced_menu.paths_updated"))
       setPathOpen(false)
       onSuccess?.()
@@ -146,18 +149,18 @@ export function AdvancedTorrentMenu({ ids, torrent, onSuccess, onExport, trigger
           {torrent ? (
             <>
               <DropdownMenuCheckboxItem checked={torrent.forceStart} onCheckedChange={(value) => void setBoolean("force", value)}>{t("advanced_menu.force_start")}</DropdownMenuCheckboxItem>
-              <DropdownMenuCheckboxItem checked={torrent.sequentialDownload} onCheckedChange={() => void run(() => rpc.toggleSequentialDownload(ids), t("advanced_menu.sequential_changed"))}>{t("advanced_menu.sequential")}</DropdownMenuCheckboxItem>
-              <DropdownMenuCheckboxItem checked={torrent.firstLastPiecePriority} onCheckedChange={() => void run(() => rpc.toggleFirstLastPiecePriority(ids), t("advanced_menu.first_last_changed"))}>{t("advanced_menu.first_last")}</DropdownMenuCheckboxItem>
-              <DropdownMenuCheckboxItem checked={torrent.superSeeding} onCheckedChange={(value) => void setBoolean("super", value)}>{t("advanced_menu.super_seeding")}</DropdownMenuCheckboxItem>
-              <DropdownMenuCheckboxItem checked={torrent.autoManagement} onCheckedChange={(value) => void setBoolean("auto", value)}>{t("advanced_menu.auto_management")}</DropdownMenuCheckboxItem>
+              {capabilities.piecePriorityToggles && <DropdownMenuCheckboxItem checked={torrent.sequentialDownload} onCheckedChange={() => void run(() => rpc.toggleSequentialDownload(ids), t("advanced_menu.sequential_changed"))}>{t("advanced_menu.sequential")}</DropdownMenuCheckboxItem>}
+              {capabilities.piecePriorityToggles && <DropdownMenuCheckboxItem checked={torrent.firstLastPiecePriority} onCheckedChange={() => void run(() => rpc.toggleFirstLastPiecePriority(ids), t("advanced_menu.first_last_changed"))}>{t("advanced_menu.first_last")}</DropdownMenuCheckboxItem>}
+              {capabilities.superSeeding && <DropdownMenuCheckboxItem checked={torrent.superSeeding} onCheckedChange={(value) => void setBoolean("super", value)}>{t("advanced_menu.super_seeding")}</DropdownMenuCheckboxItem>}
+              {capabilities.autoManagement && <DropdownMenuCheckboxItem checked={torrent.autoManagement} onCheckedChange={(value) => void setBoolean("auto", value)}>{t("advanced_menu.auto_management")}</DropdownMenuCheckboxItem>}
             </>
           ) : (
             <>
               {renderBooleanSubmenu(t("advanced_menu.force_start"), "force")}
-              <DropdownMenuItem onClick={() => void run(() => rpc.toggleSequentialDownload(ids), t("advanced_menu.sequential_changed"))}>{t("advanced_menu.toggle_sequential")}</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => void run(() => rpc.toggleFirstLastPiecePriority(ids), t("advanced_menu.first_last_changed"))}>{t("advanced_menu.toggle_first_last")}</DropdownMenuItem>
-              {renderBooleanSubmenu(t("advanced_menu.super_seeding"), "super")}
-              {renderBooleanSubmenu(t("advanced_menu.auto_management"), "auto")}
+              {capabilities.piecePriorityToggles && <DropdownMenuItem onClick={() => void run(() => rpc.toggleSequentialDownload(ids), t("advanced_menu.sequential_changed"))}>{t("advanced_menu.toggle_sequential")}</DropdownMenuItem>}
+              {capabilities.piecePriorityToggles && <DropdownMenuItem onClick={() => void run(() => rpc.toggleFirstLastPiecePriority(ids), t("advanced_menu.first_last_changed"))}>{t("advanced_menu.toggle_first_last")}</DropdownMenuItem>}
+              {capabilities.superSeeding && renderBooleanSubmenu(t("advanced_menu.super_seeding"), "super")}
+              {capabilities.autoManagement && renderBooleanSubmenu(t("advanced_menu.auto_management"), "auto")}
             </>
           )}
           <DropdownMenuSeparator />
@@ -185,10 +188,12 @@ export function AdvancedTorrentMenu({ ids, torrent, onSuccess, onExport, trigger
               <label className="text-sm font-medium">{t("advanced_menu.save_path")}</label>
               <LocationInput value={savePath} onChange={setSavePath} />
             </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">{t("advanced_menu.download_path")}</label>
-              <LocationInput value={downloadPath} onChange={setDownloadPath} placeholder={t("advanced_menu.download_path_placeholder")} />
-            </div>
+            {capabilities.separateDownloadPath && (
+              <div className="space-y-2">
+                <label className="text-sm font-medium">{t("advanced_menu.download_path")}</label>
+                <LocationInput value={downloadPath} onChange={setDownloadPath} placeholder={t("advanced_menu.download_path_placeholder")} />
+              </div>
+            )}
             {ids.length > 1 && <p className="text-xs text-amber-600 dark:text-amber-400">{t("advanced_menu.batch_path_warning", { count: ids.length })}</p>}
           </div>
           <DialogFooter>

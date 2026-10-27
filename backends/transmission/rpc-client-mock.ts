@@ -70,6 +70,14 @@ class TransmissionRPCMock {
         } as any; // 500GB free / 1TB total
       case "port-test":
         return { "port-is-open": true } as any;
+      case "torrent-verify":
+      case "torrent-reannounce":
+      case "torrent-start-now":
+      case "queue-move-top":
+      case "queue-move-up":
+      case "queue-move-down":
+      case "queue-move-bottom":
+        return {} as any;
       default:
         throw new Error(`RPC Method ${method} not implemented in mock`);
     }
@@ -165,6 +173,42 @@ class TransmissionRPCMock {
   
   async portTest() {
     return this.request<{ "port-is-open": boolean }>("port-test");
+  }
+
+  async verifyTorrents(ids?: string[]) {
+    return this.request("torrent-verify", { ids });
+  }
+
+  async reannounceTorrents(ids?: string[]) {
+    return this.request("torrent-reannounce", { ids });
+  }
+
+  async setForceStart(ids: string[], value: boolean) {
+    return this.request(value ? "torrent-start-now" : "torrent-start", { ids });
+  }
+
+  // Unsupported by Transmission; hidden through APP_CONFIG.capabilities, same errors as the real client.
+  async toggleSequentialDownload(ids: string[]): Promise<never> { void ids; throw new Error("Transmission 当前版本不支持顺序下载开关"); }
+  async toggleFirstLastPiecePriority(ids: string[]): Promise<never> { void ids; throw new Error("Transmission 不支持首尾区块优先开关"); }
+  async setSuperSeeding(ids: string[], value: boolean): Promise<never> { void ids; void value; throw new Error("Transmission 不支持超级做种"); }
+  async setAutoManagement(ids: string[], value: boolean): Promise<never> { void ids; void value; throw new Error("Transmission 不支持自动种子管理"); }
+
+  async changeQueuePriority(ids: string[], direction: "top" | "up" | "down" | "bottom") {
+    return this.request(`queue-move-${direction}`, { ids });
+  }
+
+  async setTorrentSavePath(ids: string[], path: string) {
+    return this.setTorrentLocation(ids, path, true);
+  }
+
+  async setTorrentDownloadPath(ids: string[], path: string) {
+    void ids;
+    if (path) throw new Error("Transmission 只支持统一的数据位置，请使用保存路径");
+    return {};
+  }
+
+  async exportTorrent(id: string): Promise<{ blob: Blob }> {
+    return { blob: new Blob([`d4:infod4:name${id.length}:${id}ee`], { type: "application/x-bittorrent" }) };
   }
 }
 
