@@ -1,0 +1,69 @@
+name: 同步到发布仓库
+
+# 发版只需一次确认：合并改版本号的 PR（`pnpm release <版本>` 生成）到 main。
+# 版本文件变化后自动执行：完整检查 → 为尚未发布该版本的后端开同步 PR → 等发布仓库检查通过后
+# squash merge → 发布仓库的 auto-release.yml 打标签并发布 Docker Hub / GHCR。
+# 已发布的版本会被跳过，所以不改版本号的合并不会触发任何发布。
+on:
+  push:
+    branches: [main]
+    paths:
+      - package.json
+      - backends/*/config.ts
+  workflow_dispatch:
+    inputs:
+      only:
+        description: "只同步一个后端（留空表示两个都同步）"
+        required: false
+        type: choice
+        options: ["", qbittorrent, transmission]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sync-release
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      # fine-grained PAT：仅授权两个发布仓库的 Contents、Pull requests、Workflows 写权限
+      GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v5
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: 凭据检查
+        run: |
+          if [ -z "${GH_TOKEN}" ]; then
+            echo "::error::缺少 SYNC_TOKEN secret，无法推送到发布仓库"
+            exit 1
+          fi
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: 完整检查
+        run: |
+          pnpm check:versions
+          pnpm lint
+          pnpm typecheck
+          pnpm test
+          pnpm build:all
+
+      - name: 同步、等待检查并合并
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          gh auth setup-git
+          node scripts/release.mjs --only "${{ inputs.only }}" --out release-out --open-pr --auto-merge --unreleased-only
