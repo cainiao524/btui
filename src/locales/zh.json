@@ -183,7 +183,10 @@
     "edit_labels_confirm": "更新 {count} 个种子",
     "removing": "正在移除...",
     "remove_data": "同时移除数据",
-    "remove_data_desc": "同时删除已下载的数据文件。"
+    "remove_data_desc": "同时删除已下载的数据文件。",
+    "clear_filters": "清除筛选",
+    "errors": "错误",
+    "total_items": "共 {count} 项"
   },
   "details": {
     "general": "常规",
@@ -388,7 +391,9 @@
     "total_tasks": "任务总数",
     "paused_tasks": "暂停数量",
     "free_unit": "剩余",
-    "total_label": "总量"
+    "total_label": "总量",
+    "overview": "传输总览",
+    "ratio": "分享率"
   },
   "status": {
     "stopped": "已停止",
@@ -706,5 +711,18 @@
     "aria": "最近六十次刷新的传输速度",
     "waiting": "等待下一次刷新以绘制趋势",
     "samples": "最近 {count}/60 个采样点"
+  },
+  "selection": {
+    "count": "已选 {count} 项",
+    "select_all": "全选 {count} 项",
+    "clear": "清除选择"
+  },
+  "filters": {
+    "remove": "移除筛选",
+    "trackers": "Tracker",
+    "dirs": "目录",
+    "labels": "标签",
+    "show_all": "显示全部 {count} 项",
+    "show_less": "收起"
   }
 }

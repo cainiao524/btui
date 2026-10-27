@@ -32,12 +32,14 @@ interface AdvancedTorrentMenuProps {
   trigger?: React.ReactNode
   primaryActions?: boolean
   editAction?: React.ReactNode
+  /** Rendered first in the menu, e.g. batch-only actions from the selection bar. */
+  extraItems?: React.ReactNode
   onPrimaryAction?: (action: "start" | "stop" | "remove") => void
 }
 
 type BooleanAction = "force" | "super" | "auto"
 
-export function AdvancedTorrentMenu({ ids, torrent, onSuccess, onExport, trigger, primaryActions = false, editAction, onPrimaryAction }: AdvancedTorrentMenuProps) {
+export function AdvancedTorrentMenu({ ids, torrent, onSuccess, onExport, trigger, primaryActions = false, editAction, extraItems, onPrimaryAction }: AdvancedTorrentMenuProps) {
   const { t } = useI18n()
   const [pathOpen, setPathOpen] = React.useState(false)
   const [savePath, setSavePath] = React.useState(torrent?.downloadDir ?? "")
@@ -119,6 +121,12 @@ export function AdvancedTorrentMenu({ ids, torrent, onSuccess, onExport, trigger
           )}
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-56">
+          {extraItems && (
+            <>
+              {extraItems}
+              <DropdownMenuSeparator />
+            </>
+          )}
           {primaryActions && torrent && onPrimaryAction && (
             <>
               <DropdownMenuLabel>{t("common.actions")}</DropdownMenuLabel>

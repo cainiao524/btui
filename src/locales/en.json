@@ -183,7 +183,10 @@
     "edit_labels_confirm": "Update {count} Torrents",
     "removing": "Removing...",
     "remove_data": "Also remove data",
-    "remove_data_desc": "Also delete the downloaded data files."
+    "remove_data_desc": "Also delete the downloaded data files.",
+    "clear_filters": "Clear filters",
+    "errors": "Errors",
+    "total_items": "{count} torrents"
   },
   "details": {
     "general": "General",
@@ -388,7 +391,9 @@
     "total_tasks": "Tasks",
     "paused_tasks": "Paused",
     "free_unit": "free",
-    "total_label": "Total"
+    "total_label": "Total",
+    "overview": "Transfer overview",
+    "ratio": "Ratio"
   },
   "status": {
     "stopped": "Stopped",
@@ -706,5 +711,18 @@
     "aria": "Transfer speeds from the latest sixty refreshes",
     "waiting": "Waiting for the next refresh to draw the trend",
     "samples": "Latest {count}/60 samples"
+  },
+  "selection": {
+    "count": "{count} selected",
+    "select_all": "Select all {count}",
+    "clear": "Clear selection"
+  },
+  "filters": {
+    "remove": "Remove filter",
+    "trackers": "Trackers",
+    "dirs": "Folders",
+    "labels": "Labels",
+    "show_all": "Show all {count}",
+    "show_less": "Show less"
   }
 }
