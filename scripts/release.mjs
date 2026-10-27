@@ -2,12 +2,14 @@
 //
 //   node scripts/release.mjs [version] [--only qbittorrent|transmission] [--out release-out]
 //                            [--compare <dir containing the existing repo checkouts>]
-//                            [--open-pr]
+//                            [--open-pr [--auto-merge]] [--unreleased-only]
 //
 // Without --open-pr nothing leaves this machine: each tree is written to <out>/<packageName>
 // and, with --compare, diffed against an existing checkout of that repository. With --open-pr
-// the tree is committed to a `release/v<version>` branch of the target repository and a draft
-// PR is opened through the authenticated gh CLI; merging and tagging stay manual.
+// the tree is committed to a `release/v<version>` branch of the target repository and a PR is
+// opened through the authenticated gh CLI (a draft unless --auto-merge). --auto-merge waits for
+// the target repository's checks and squash-merges; its auto-release.yml then tags and
+// publishes. --unreleased-only skips backends whose version tag already exists.
 import { execFileSync } from "node:child_process"
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import path from "node:path"
@@ -20,13 +22,15 @@ const REPO_SPECIFIC = new Set(["README.md", "DOCKERHUB.md", "CHANGELOG.md", "Doc
 const SOURCE_ONLY = [".github/", "release/", "scripts/release.mjs"]
 
 function parseArgs(argv) {
-  const options = { version: null, only: null, out: "release-out", compare: null, openPr: false }
+  const options = { version: null, only: null, out: "release-out", compare: null, openPr: false, autoMerge: false, unreleasedOnly: false }
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index]
-    if (arg === "--only") options.only = argv[++index]
+    if (arg === "--only") options.only = argv[++index] || null
     else if (arg === "--out") options.out = argv[++index]
     else if (arg === "--compare") options.compare = argv[++index]
     else if (arg === "--open-pr") options.openPr = true
+    else if (arg === "--auto-merge") options.autoMerge = true
+    else if (arg === "--unreleased-only") options.unreleasedOnly = true
     else if (!arg.startsWith("--") && !options.version) options.version = arg
     else throw new Error(`Unknown argument: ${arg}`)
   }
@@ -131,7 +135,7 @@ function compareTree(target, existing) {
   }
 }
 
-function openPullRequest({ release, target }, version) {
+function openPullRequest({ release, target }, version, autoMerge) {
   const branch = `release/v${version}-${release.tagSuffix}`
   const workdir = path.join(path.dirname(target), `.${release.packageName}-push`)
   rmSync(workdir, { recursive: true, force: true })
@@ -151,7 +155,41 @@ function openPullRequest({ release, target }, version) {
   run("git", ["add", "-A"], workdir)
   run("git", ["commit", "-m", `同步发布 v${version}-${release.tagSuffix}`], workdir)
   run("git", ["push", "-u", "origin", branch], workdir)
-  console.log(run("gh", ["pr", "create", "--draft", "--repo", release.repository, "--head", branch, "--title", `发布 v${version}-${release.tagSuffix}`, "--body", "由统一源码仓同步生成。合并后打标签即触发 Docker Hub / GHCR 发布。"], workdir))
+
+  // The first sync restructures the whole repository, so it always waits for a human review.
+  const merge = autoMerge && existsSync(synced)
+  const body = merge
+    ? "由统一源码仓同步生成，检查通过后自动 squash merge；合并后 auto-release.yml 自动打标签并发布 Docker Hub / GHCR。"
+    : "由统一源码仓同步生成。合并后 auto-release.yml 自动打标签并发布 Docker Hub / GHCR。"
+  const prUrl = run("gh", ["pr", "create", ...(merge ? [] : ["--draft"]), "--repo", release.repository, "--head", branch, "--title", `发布 v${version}-${release.tagSuffix}`, "--body", body], workdir).trim()
+  console.log(`  ${prUrl}`)
+  if (!merge) {
+    if (autoMerge) console.log("  first sync: opened as draft, review and merge it manually")
+    return
+  }
+  waitForChecks(prUrl, workdir)
+  run("gh", ["pr", "merge", prUrl, "--squash", "--delete-branch"], workdir)
+  console.log("  merged; auto-release.yml will tag and publish")
+}
+
+function waitForChecks(prUrl, cwd) {
+  // Checks take a few seconds to register after the push; `gh pr checks` fails while none exist.
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    try {
+      execFileSync("gh", ["pr", "checks", prUrl, "--watch", "--fail-fast", "--interval", "20"], { cwd, stdio: "inherit" })
+      return
+    } catch (error) {
+      const pending = run("gh", ["pr", "checks", prUrl, "--json", "state", "--jq", "length"], cwd).trim()
+      if (pending !== "0") throw new Error(`checks failed on ${prUrl}; not merging`, { cause: error })
+      execFileSync(process.execPath, ["-e", "setTimeout(() => {}, 10000)"])
+    }
+  }
+  throw new Error(`no checks reported on ${prUrl} after 5 minutes; not merging`)
+}
+
+function isReleased(release, version) {
+  const tag = `refs/tags/v${version}-${release.tagSuffix}`
+  return run("git", ["ls-remote", "--tags", `https://github.com/${release.repository}.git`, tag]).trim() !== ""
 }
 
 function main() {
@@ -165,7 +203,11 @@ function main() {
     const result = buildTree(backend, outDir, sourceCommit)
     console.log(`${backend}: ${path.relative(ROOT, result.target)} (v${result.version}-${result.release.tagSuffix})`)
     if (options.compare) compareTree(result.target, path.resolve(options.compare, result.release.packageName))
-    if (options.openPr) openPullRequest(result, result.version)
+    if (options.unreleasedOnly && isReleased(result.release, result.version)) {
+      console.log(`  v${result.version}-${result.release.tagSuffix} is already released, skipped`)
+      continue
+    }
+    if (options.openPr) openPullRequest(result, result.version, options.autoMerge)
   }
 }
 

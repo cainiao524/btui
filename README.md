@@ -42,8 +42,16 @@ pnpm lint && pnpm typecheck && pnpm test && pnpm build:all
 
 ## 发布
 
-1. `pnpm release 1.20.0` 改写两个后端的版本号，提交并走 PR 合并。热修单个后端：`pnpm release 1.20.0-1 --only transmission`。
-2. 在 Actions 手动运行「同步到发布仓库」（需要 `SYNC_TOKEN`：只授权两个发布仓库 Contents 与 Pull requests 写权限的 fine-grained PAT），为两个发布仓库各开一个草稿 PR。也可以在本地运行 `pnpm release --open-pr`，使用已登录的 gh CLI。
-3. 在发布仓库合并 PR 并打标签（`vX.Y.Z-funky9` / `vX.Y.Z-baka9`），发布仓库原有的 `docker-image.yml` 会自动推送 Docker Hub 与 GHCR。
+发版只需要一次确认：合并改版本号的 PR。
 
-`pnpm release` 不带 `--open-pr` 时只在本地生成 `release-out/`，不会推送任何东西。
+1. `pnpm release 1.20.0` 改写两个后端的版本号，提交并开 PR。热修单个后端：`pnpm release 1.20.0-1 --only transmission`。
+2. 合并这个 PR。之后全自动：
+   - 本仓库「同步到发布仓库」跑完两个后端的检查，为还没发布该版本的发布仓库开同步 PR；
+   - 等发布仓库的检查通过后自动 squash merge；
+   - 发布仓库的 `auto-release.yml` 打标签（`vX.Y.Z-funky9` / `vX.Y.Z-baka9`），调起 `docker-image.yml` 推送 Docker Hub、GHCR 并创建 Release。
+
+任一步失败都会停下，不会只发一半。不改版本号的合并不会触发发布。
+
+需要在本仓库配置 `SYNC_TOKEN`：只授权两个发布仓库的 fine-grained PAT，权限为 Contents、Pull requests、Workflows 读写。
+
+第一次同步会改动发布仓库的整体结构，所以只开草稿 PR，需要人工审阅后合并。手动同步可在 Actions 运行「同步到发布仓库」，或在本地运行 `pnpm release --open-pr`（使用已登录的 gh CLI）。`pnpm release` 不带 `--open-pr` 时只在本地生成 `release-out/`，不会推送任何东西。

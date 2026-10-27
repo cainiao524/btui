@@ -1,10 +1,15 @@
 name: 同步到发布仓库
 
-# 手动触发：用 main 上已合并的版本号（先在本仓库用 `pnpm release <版本>` 改版本并走 PR），
-# 生成两个后端仓库的发布树，推送 release 分支并开草稿 PR。
-# 合并 PR 与打标签仍由维护者在各发布仓库完成，标签推送后由发布仓库原有的
-# docker-image.yml 自动发布 Docker Hub 与 GHCR。
+# 发版只需一次确认：合并改版本号的 PR（`pnpm release <版本>` 生成）到 main。
+# 版本文件变化后自动执行：完整检查 → 为尚未发布该版本的后端开同步 PR → 等发布仓库检查通过后
+# squash merge → 发布仓库的 auto-release.yml 打标签并发布 Docker Hub / GHCR。
+# 已发布的版本会被跳过，所以不改版本号的合并不会触发任何发布。
 on:
+  push:
+    branches: [main]
+    paths:
+      - package.json
+      - backends/*/config.ts
   workflow_dispatch:
     inputs:
       only:
@@ -23,9 +28,9 @@ concurrency:
 jobs:
   sync:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
     env:
-      # fine-grained PAT：仅授权两个发布仓库的 Contents 与 Pull requests 写权限
+      # fine-grained PAT：仅授权两个发布仓库的 Contents、Pull requests、Workflows 写权限
       GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
     steps:
       - uses: actions/checkout@v5
@@ -48,20 +53,6 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - name: 确认目标标签尚不存在
-        run: |
-          VERSION=$(node -p "require('./package.json').version")
-          for backend in qbittorrent transmission; do
-            if [ -n "${{ inputs.only }}" ] && [ "${{ inputs.only }}" != "$backend" ]; then continue; fi
-            REPO=$(node -p "require('./backends/$backend/release.json').repository")
-            TAG="v${VERSION}-$(node -p "require('./backends/$backend/release.json').tagSuffix")"
-            if git ls-remote --exit-code --tags "https://github.com/${REPO}.git" "refs/tags/${TAG}" >/dev/null; then
-              echo "::error::${REPO} 已存在标签 ${TAG}，禁止覆盖"
-              exit 1
-            fi
-            echo "${REPO}: ${TAG} 可用"
-          done
-
       - name: 完整检查
         run: |
           pnpm check:versions
@@ -70,9 +61,9 @@ jobs:
           pnpm test
           pnpm build:all
 
-      - name: 推送 release 分支并创建草稿 PR
+      - name: 同步、等待检查并合并
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
           gh auth setup-git
-          node scripts/release.mjs ${{ inputs.only && format('--only {0}', inputs.only) || '' }} --out release-out --open-pr
+          node scripts/release.mjs --only "${{ inputs.only }}" --out release-out --open-pr --auto-merge --unreleased-only

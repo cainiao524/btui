@@ -3,6 +3,9 @@ name: Build and publish Docker images (transactional)
 on:
   push:
     tags: ["v*"]
+  # auto-release.yml 用 GITHUB_TOKEN 打的标签不会产生 push 事件，由它以 --ref <标签> 调起；
+  # 此时 GITHUB_REF_NAME 即标签名，preflight 的标签格式与 main HEAD 校验照常生效。
+  workflow_dispatch:
 
 permissions:
   contents: write
