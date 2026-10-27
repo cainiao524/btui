@@ -1,0 +1,104 @@
+name: Docker 镜像构建（不推送）
+
+# 用生成的发布仓库内容构建两个后端的镜像，验证 Dockerfile、nginx 模板与多架构构建。
+# 只在 GitHub 云端构建与冒烟测试，不登录任何镜像仓库、不推送。
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docker-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        backend: [qbittorrent, transmission]
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v5
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: 生成发布仓库内容
+        id: tree
+        run: |
+          node scripts/release.mjs --only "${{ matrix.backend }}" --out release-out
+          PACKAGE=$(node -p "require('./backends/${{ matrix.backend }}/release.json').packageName")
+          APP_NAME=$(node -e "const s=require('fs').readFileSync('backends/${{ matrix.backend }}/config.ts','utf8'); console.log(s.match(/name: \"([^\"]+)\"/)[1])")
+          echo "context=release-out/${PACKAGE}" >> "$GITHUB_OUTPUT"
+          echo "package=${PACKAGE}" >> "$GITHUB_OUTPUT"
+          echo "app-name=${APP_NAME}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-qemu-action@v3
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: 多架构构建（amd64 + arm64）
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ steps.tree.outputs.context }}
+          platforms: linux/amd64,linux/arm64
+          push: false
+          cache-from: type=gha,scope=${{ matrix.backend }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.backend }}
+
+      - name: 构建 amd64 本地镜像
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ steps.tree.outputs.context }}
+          platforms: linux/amd64
+          load: true
+          tags: btui-local/${{ steps.tree.outputs.package }}:ci
+          cache-from: type=gha,scope=${{ matrix.backend }}
+
+      - name: 冒烟测试
+        env:
+          IMAGE: btui-local/${{ steps.tree.outputs.package }}:ci
+          APP_NAME: ${{ steps.tree.outputs.app-name }}
+        run: |
+          set -euo pipefail
+          # 与 README 的 Linux 部署方式一致：nginx 启动时要解析默认上游 host.docker.internal
+          docker run -d --name smoke --add-host host.docker.internal:host-gateway -p 8080:80 "$IMAGE"
+          for attempt in $(seq 1 30); do
+            if [ "$(docker inspect -f '{{.State.Running}}' smoke)" != "true" ]; then
+              docker logs smoke
+              echo "::error::容器已退出"
+              exit 1
+            fi
+            if curl -fsS -o /tmp/index.html http://127.0.0.1:8080/; then break; fi
+            sleep 1
+          done
+          docker logs smoke
+          grep -q "<title>${APP_NAME}</title>" /tmp/index.html || { echo "::error::页面标题不是 ${APP_NAME}"; exit 1; }
+          ASSET=$(grep -oE '/?assets/index-[^"]+\.js' /tmp/index.html | head -1)
+          curl -fsS -o /dev/null "http://127.0.0.1:8080/${ASSET#/}"
+          for attempt in $(seq 1 30); do
+            STATUS=$(docker inspect -f '{{.State.Health.Status}}' smoke)
+            [ "$STATUS" = "healthy" ] && break
+            sleep 2
+          done
+          echo "health: ${STATUS}"
+          [ "$STATUS" = "healthy" ] || { echo "::error::容器健康检查未通过"; exit 1; }
+          echo "### ${APP_NAME}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- 镜像：$(docker image inspect -f '{{.Size}}' "$IMAGE" | numfmt --to=iec) · 标题与静态资源正常 · 健康检查 ${STATUS}" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: 清理
+        if: always()
+        run: docker rm -f smoke >/dev/null 2>&1 || true
