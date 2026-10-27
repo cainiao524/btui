@@ -74,8 +74,14 @@ jobs:
           APP_NAME: ${{ steps.tree.outputs.app-name }}
         run: |
           set -euo pipefail
-          docker run -d --name smoke -p 8080:80 "$IMAGE"
+          # 与 README 的 Linux 部署方式一致：nginx 启动时要解析默认上游 host.docker.internal
+          docker run -d --name smoke --add-host host.docker.internal:host-gateway -p 8080:80 "$IMAGE"
           for attempt in $(seq 1 30); do
+            if [ "$(docker inspect -f '{{.State.Running}}' smoke)" != "true" ]; then
+              docker logs smoke
+              echo "::error::容器已退出"
+              exit 1
+            fi
             if curl -fsS -o /tmp/index.html http://127.0.0.1:8080/; then break; fi
             sleep 1
           done
