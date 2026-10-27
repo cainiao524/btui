@@ -35,7 +35,7 @@ import { RemoveTorrentDialog } from "@/components/torrents/remove-torrent-dialog
 
 import { useI18n } from "@/lib/i18n-context"
 import { useSearch } from "@/lib/search-context"
-import { rpc } from "@/lib/rpc-client"
+import { rpc } from "@backend/rpc-client"
 import { formatSize, formatSpeed } from "@/lib/formatters"
 import { useTorrentData } from "@/hooks/use-torrent-data"
 import { useTorrentFilters } from "@/hooks/use-torrent-filters"
@@ -57,6 +57,7 @@ import {
 import { selectTorrentRange, type SortConfig, type SortKey } from "@/lib/torrent-list-utils"
 import { useSortedTorrents } from "@/hooks/use-sorted-torrents"
 import type { TorrentId } from "@/lib/rpc-types"
+import { APP_CONFIG } from "@/lib/config"
 
 type CardColor = "green" | "blue" | "orange" | "purple"
 
@@ -370,7 +371,7 @@ export function TorrentView({ statusFilter, showStats = true, isActive = true }:
         setSelectionAnchorId(null)
       } else if (!event.ctrlKey && !event.metaKey && !event.altKey && key === "a") {
         event.preventDefault()
-        window.dispatchEvent(new Event("qbittorrent:add-torrent"))
+        window.dispatchEvent(new Event(APP_CONFIG.events.addTorrent))
       } else if (event.key === "Escape") {
         setSelectedIds([])
         setSelectionAnchorId(null)

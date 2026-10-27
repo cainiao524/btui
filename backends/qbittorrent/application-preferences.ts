@@ -1,4 +1,4 @@
-import type { ApplicationPreferences, ApplicationPreferenceValue } from "./rpc-types"
+import type { ApplicationPreferences, ApplicationPreferenceValue } from "@/lib/rpc-types"
 
 export type PreferenceCategory =
   | "behavior"
@@ -168,8 +168,17 @@ export function getPreferenceDependencyKeys(key: string): readonly string[] {
   return PREFERENCE_DEPENDENCIES[key] ?? []
 }
 
+// qBittorrent exposes no read-only preferences through /app/preferences.
+export function isWritablePreference(key: string): boolean {
+  return key.length > 0
+}
+
+export function isPreferenceDependencyMet(dependency: string, preferences: ApplicationPreferences): boolean {
+  return preferences[dependency] === true
+}
+
 export function isPreferenceApplicable(key: string, preferences: ApplicationPreferences): boolean {
-  return getPreferenceDependencyKeys(key).every((dependency) => preferences[dependency] === true)
+  return getPreferenceDependencyKeys(key).every((dependency) => isPreferenceDependencyMet(dependency, preferences))
 }
 
 export function isSensitivePreference(key: string): boolean {

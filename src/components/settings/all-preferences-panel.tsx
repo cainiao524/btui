@@ -20,15 +20,18 @@ import {
   getPreferenceDependencyKeys,
   getPreferenceValueType,
   isPreferenceApplicable,
+  isPreferenceDependencyMet,
+  isWritablePreference,
   isConnectionCriticalPreference,
   isSensitivePreference,
   isStructuredPreference,
   PREFERENCE_CATEGORY_ORDER,
   type PreferenceCategory,
-} from "@/lib/application-preferences"
-import { getPreferenceLabel, getPreferenceOptions } from "@/lib/application-preference-labels"
+} from "@backend/application-preferences"
+import { getPreferenceLabel, getPreferenceOptions } from "@backend/application-preference-labels"
 import { useI18n } from "@/lib/i18n-context"
-import { rpc } from "@/lib/rpc-client"
+import { APP_CONFIG } from "@/lib/config"
+import { rpc } from "@backend/rpc-client"
 import type { ApplicationPreferences, ApplicationPreferenceValue } from "@/lib/rpc-types"
 import { cn } from "@/lib/utils"
 
@@ -58,7 +61,7 @@ export function AllPreferencesPanel() {
   const [parseErrors, setParseErrors] = useState<Record<string, string>>({})
   const [query, setQuery] = useState("")
   const [changedOnly, setChangedOnly] = useState(false)
-  const [activeCategory, setActiveCategory] = useState<PreferenceCategory>("behavior")
+  const [activeCategory, setActiveCategory] = useState<PreferenceCategory>(PREFERENCE_CATEGORY_ORDER[0])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
 
@@ -71,7 +74,7 @@ export function AllPreferencesPanel() {
       setStructuredDrafts(createStructuredDrafts(data))
       setParseErrors({})
     } catch (error) {
-      console.error("Failed to fetch qBittorrent preferences:", error)
+      console.error(`Failed to fetch ${APP_CONFIG.backendName} preferences:`, error)
       toast.error(t("settings.all.load_failed", "无法读取全部偏好设置"))
     } finally {
       setLoading(false)
@@ -171,7 +174,7 @@ export function AllPreferencesPanel() {
       })
       await fetchPreferences()
     } catch (error) {
-      console.error("Failed to save qBittorrent preferences:", error)
+      console.error(`Failed to save ${APP_CONFIG.backendName} preferences:`, error)
       toast.error(t("settings.all.save_failed", "保存偏好设置失败"), {
         description: t(
           "settings.all.save_failed_desc",
@@ -450,9 +453,10 @@ export function AllPreferencesPanel() {
             <CardContent className="divide-y divide-muted/30 p-0">
               {activeEntries.map(([key, value]) => {
                 const dependencyKeys = getPreferenceDependencyKeys(key)
+                const writable = isWritablePreference(key)
                 const applicable = isPreferenceApplicable(key, draft)
                 const dependencyLabels = dependencyKeys
-                  .filter((dependency) => draft[dependency] !== true)
+                  .filter((dependency) => !isPreferenceDependencyMet(dependency, draft))
                   .map((dependency) => getPreferenceLabel(dependency, locale))
                   .join(locale === "zh" ? "、" : ", ")
 
@@ -462,7 +466,7 @@ export function AllPreferencesPanel() {
                     className={cn(
                       "grid gap-4 p-4 transition-colors md:grid-cols-[minmax(220px,0.8fr)_minmax(280px,1.2fr)] md:items-start md:p-5",
                       changedKeys.has(key) && "bg-primary/[0.04]",
-                      !applicable && "bg-muted/[0.18]",
+                      (!writable || !applicable) && "bg-muted/[0.18]",
                     )}
                   >
                     <div className="min-w-0 space-y-1">
@@ -475,7 +479,12 @@ export function AllPreferencesPanel() {
                             {t("settings.all.changed", "已更改")}
                           </span>
                         )}
-                        {!applicable && (
+                        {!writable && (
+                          <span className="rounded-full bg-muted px-2 py-0.5 text-[9px] font-bold text-muted-foreground">
+                            {t("settings.all.read_only", "只读")}
+                          </span>
+                        )}
+                        {writable && !applicable && (
                           <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-[9px] font-bold text-amber-700 dark:text-amber-300">
                             {t("settings.all.unavailable", "暂不可用")}
                           </span>
@@ -486,14 +495,14 @@ export function AllPreferencesPanel() {
                         {getPreferenceValueType(value)}
                         {isSensitivePreference(key) && ` · ${t("settings.all.sensitive", "敏感字段")}`}
                       </p>
-                      {!applicable && dependencyLabels && (
+                      {writable && !applicable && dependencyLabels && (
                         <p className="text-[10px] leading-relaxed text-amber-700 dark:text-amber-300">
                           {t("settings.all.requires", "需先启用：{{settings}}")
                             .replace("{{settings}}", dependencyLabels)}
                         </p>
                       )}
                     </div>
-                    {renderEditor(key, value, !applicable)}
+                    {renderEditor(key, value, !writable || !applicable)}
                   </div>
                 )
               })}

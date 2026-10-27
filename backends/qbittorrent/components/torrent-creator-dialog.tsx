@@ -18,7 +18,7 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { downloadBlob } from "@/lib/download"
 import { useI18n } from "@/lib/i18n-context"
-import { rpc } from "@/lib/rpc-client"
+import { rpc } from "@backend/rpc-client"
 import type { TorrentCreatorArgs } from "@/lib/rpc-types"
 
 const PIECE_SIZES = [0, ...Array.from({ length: 14 }, (_, index) => 16 * 1024 * (2 ** index))]

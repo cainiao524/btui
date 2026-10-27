@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import type { ApplicationPreferences, Session, TorrentFilePriority, TorrentPieceState } from "./rpc-types";
-import { MOCK_SESSION, MOCK_STATS, MOCK_TORRENTS } from "./mock-data";
+import type { ApplicationPreferences, Session, TorrentFilePriority, TorrentPieceState } from "@/lib/rpc-types";
+import { MOCK_SESSION, MOCK_STATS, MOCK_TORRENTS } from "@/lib/mock-data";
+import { APP_CONFIG } from "./config";
 
 const MOCK_APPLICATION_PREFERENCES: ApplicationPreferences = {
   locale: "zh_CN",
@@ -80,7 +81,7 @@ class QBittorrentRPCMock {
     void _password;
     return;
   }
-  async logout() { return; }
+  async logout() { window.dispatchEvent(new Event(APP_CONFIG.events.authLogout)); }
 
   async request<T = any>(method: string, args?: any): Promise<T> {
     console.log(`[RPC Mock] Request: ${method}`, args);

@@ -125,7 +125,7 @@ export function getTorrentSortValue(torrent: Torrent, key: SortKey): number | st
     case "peers":
       return torrent.peersGettingFromUs
     case "tracker":
-      return torrent.trackers?.[0]?.announce ?? ""
+      return torrent.trackerStats?.[0]?.announce ?? torrent.trackers?.[0]?.announce ?? ""
     default: {
       const value = torrent[key as keyof Torrent]
       return (typeof value === "number" || typeof value === "string") ? value : 0

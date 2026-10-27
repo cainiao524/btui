@@ -5,13 +5,20 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:qb": "node scripts/with-backend.mjs qbittorrent vite",
+    "dev:tr": "node scripts/with-backend.mjs transmission vite",
     "build": "tsc -b && vite build",
+    "build:qb": "node scripts/with-backend.mjs qbittorrent vite build --outDir dist/qbittorrent",
+    "build:tr": "node scripts/with-backend.mjs transmission vite build --outDir dist/transmission",
+    "build:all": "tsc -b && pnpm build:qb && pnpm build:tr",
     "check:versions": "node scripts/check-version-references.mjs",
     "lint": "eslint .",
     "format": "prettier --write \"**/*.{ts,tsx}\"",
-    "test": "vitest run",
+    "test": "pnpm test:qb && pnpm test:tr",
+    "test:qb": "node scripts/with-backend.mjs qbittorrent vitest run",
+    "test:tr": "node scripts/with-backend.mjs transmission vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc -b",
     "preview": "vite preview"
   },
   "dependencies": {

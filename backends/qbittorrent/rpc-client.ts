@@ -11,9 +11,10 @@ import type {
   TorrentCreatorArgs,
   TorrentCreatorTask,
   TorrentSetArgs,
-} from "./rpc-types"
-import { parseTorrentLabels } from "./torrent-labels"
-import { TorrentStatus, type Peer, type Torrent, type TorrentFile, type TorrentFilePriority, type TorrentPieceState, type Tracker, type TrackerStat } from "./rpc-types"
+} from "@/lib/rpc-types"
+import { parseTorrentLabels } from "@/lib/torrent-labels"
+import { APP_CONFIG } from "./config"
+import { TorrentStatus, type Peer, type Torrent, type TorrentFile, type TorrentFilePriority, type TorrentPieceState, type Tracker, type TrackerStat } from "@/lib/rpc-types"
 
 type JsonRecord = Record<string, unknown>
 
@@ -260,7 +261,11 @@ class QBittorrentRPC {
   }
 
   async logout(): Promise<void> {
-    await this.post("/auth/logout")
+    try {
+      await this.post("/auth/logout")
+    } finally {
+      if (typeof window !== "undefined") window.dispatchEvent(new Event(APP_CONFIG.events.authLogout))
+    }
   }
 
   async getTorrents(fields: string[], ids?: TorrentId[]): Promise<TorrentGetResponse> {
