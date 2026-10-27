@@ -3,6 +3,17 @@ import type { ApplicationPreferences, Session, TorrentCreatorArgs, TorrentCreato
 import { MOCK_SESSION, MOCK_STATS, MOCK_TORRENTS } from "@/lib/mock-data";
 import { APP_CONFIG } from "./config";
 
+// qBittorrent organises torrents by category; give the shared demo torrents one based on their folder.
+const MOCK_CATEGORIES = [
+  { name: "Movies", savePath: "/srv/downloads/movies" },
+  { name: "TV", savePath: "/srv/downloads/tv" },
+  { name: "Linux ISO", savePath: "/srv/downloads/iso" },
+  { name: "Music", savePath: "/srv/downloads/music" },
+];
+for (const torrent of MOCK_TORRENTS) {
+  torrent.category ||= MOCK_CATEGORIES.find((category) => torrent.downloadDir?.startsWith(category.savePath))?.name ?? "";
+}
+
 const MOCK_APPLICATION_PREFERENCES: ApplicationPreferences = {
   locale: "zh_CN",
   save_path: "/srv/downloads",
@@ -138,7 +149,7 @@ class QBittorrentRPCMock {
   }
 
   async getTorrentCategories(): Promise<Array<{ name: string; savePath: string; downloadPath?: string | boolean | null }>> {
-    return [];
+    return MOCK_CATEGORIES;
   }
 
   async getTorrentTags(): Promise<string[]> {
