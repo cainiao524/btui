@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       candidate:
-        description: "exact staging candidate (qb-rehearsal-<run-id>-<attempt>)"
+        description: "exact staging candidate (__CANDIDATE_PREFIX__-rehearsal-<run-id>-<attempt>)"
         required: true
       expected_digest:
         description: "expected sha256 digest of the candidate version"
@@ -137,8 +137,8 @@ jobs:
           OTHER = json.dumps({"message": "some other error", "status": "400"})
           EXP_DGST = "sha256:" + "a" * 64
           EXP_ID = "1120649274"
-          CAND = "qb-rehearsal-31485736041-1"
-          PKG = "qb-release-staging"
+          CAND = "__CANDIDATE_PREFIX__-rehearsal-31485736041-1"
+          PKG = "__STAGING_PKG__"
 
           def single_version():
               return [{"id": int(EXP_ID), "name": EXP_DGST,
@@ -240,7 +240,7 @@ jobs:
           CANDIDATE="${CANDIDATE}"
           EXPECTED_DIGEST="${EXPECTED_DIGEST}"
           EXPECTED_VERSION_ID="${EXPECTED_VERSION_ID}"
-          if [[ ! "${CANDIDATE}" =~ ^qb-rehearsal-[0-9]+-[0-9]+$ ]]; then
+          if [[ ! "${CANDIDATE}" =~ ^__CANDIDATE_PREFIX__-rehearsal-[0-9]+-[0-9]+$ ]]; then
             echo "::error::candidate 格式非法: '${CANDIDATE}'; 零 DELETE"; exit 1
           fi
           if [[ ! "${EXPECTED_DIGEST}" =~ ^sha256:[a-f0-9]{64}$ ]]; then
@@ -356,8 +356,8 @@ jobs:
           CANDIDATE="${CANDIDATE}"
           EXPECTED_DIGEST="${EXPECTED_DIGEST}"
           EXPECTED_VERSION_ID="${EXPECTED_VERSION_ID}"
-          STAGING_PKG="qb-release-staging"
-          STAGING_REF="ghcr.io/cainiao524/qb-release-staging"
+          STAGING_PKG="__STAGING_PKG__"
+          STAGING_REF="ghcr.io/cainiao524/__STAGING_PKG__"
 
           # ---- 只读确认 DH candidate（理想 ABSENT；不执行 DH DELETE）----
           DH_STATE=$(curl -s -o /dev/null -w "%{http_code}" \
@@ -471,7 +471,7 @@ jobs:
 
           # ---- whole-package DELETE 目标白名单（硬编码，禁止变量构造 production 名）----
           case "${STAGING_PKG}" in
-            qb-release-staging) ;;
+            __STAGING_PKG__) ;;
             *) echo "::error::whole-package DELETE 白名单拒绝: ${STAGING_PKG}; 零 DELETE"; exit 1;;
           esac
           # 硬性静态断言：production package 名不得出现在 whole-package DELETE URL

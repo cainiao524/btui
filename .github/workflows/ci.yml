@@ -1,0 +1,50 @@
+name: 验证与构建（双后端）
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v5
+
+      - name: 安装 pnpm
+        uses: pnpm/action-setup@v5
+        with:
+          version: 10
+
+      - name: 配置 Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: 安装依赖
+        run: pnpm install --frozen-lockfile
+
+      - name: 版本引用检查
+        run: pnpm check:versions
+
+      - name: 代码规范检查
+        run: pnpm lint
+
+      - name: 类型检查（两个后端）
+        run: pnpm typecheck
+
+      - name: 运行测试（两个后端）
+        run: pnpm test
+
+      - name: 构建（两个后端）
+        run: pnpm build:all
+
+      - name: 生成发布树（不推送）
+        run: pnpm release

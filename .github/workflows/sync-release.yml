@@ -1,0 +1,78 @@
+name: 同步到发布仓库
+
+# 手动触发：用 main 上已合并的版本号（先在本仓库用 `pnpm release <版本>` 改版本并走 PR），
+# 生成两个后端仓库的发布树，推送 release 分支并开草稿 PR。
+# 合并 PR 与打标签仍由维护者在各发布仓库完成，标签推送后由发布仓库原有的
+# docker-image.yml 自动发布 Docker Hub 与 GHCR。
+on:
+  workflow_dispatch:
+    inputs:
+      only:
+        description: "只同步一个后端（留空表示两个都同步）"
+        required: false
+        type: choice
+        options: ["", qbittorrent, transmission]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sync-release
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      # fine-grained PAT：仅授权两个发布仓库的 Contents 与 Pull requests 写权限
+      GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v5
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: 凭据检查
+        run: |
+          if [ -z "${GH_TOKEN}" ]; then
+            echo "::error::缺少 SYNC_TOKEN secret，无法推送到发布仓库"
+            exit 1
+          fi
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: 确认目标标签尚不存在
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          for backend in qbittorrent transmission; do
+            if [ -n "${{ inputs.only }}" ] && [ "${{ inputs.only }}" != "$backend" ]; then continue; fi
+            REPO=$(node -p "require('./backends/$backend/release.json').repository")
+            TAG="v${VERSION}-$(node -p "require('./backends/$backend/release.json').tagSuffix")"
+            if git ls-remote --exit-code --tags "https://github.com/${REPO}.git" "refs/tags/${TAG}" >/dev/null; then
+              echo "::error::${REPO} 已存在标签 ${TAG}，禁止覆盖"
+              exit 1
+            fi
+            echo "${REPO}: ${TAG} 可用"
+          done
+
+      - name: 完整检查
+        run: |
+          pnpm check:versions
+          pnpm lint
+          pnpm typecheck
+          pnpm test
+          pnpm build:all
+
+      - name: 推送 release 分支并创建草稿 PR
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          gh auth setup-git
+          node scripts/release.mjs ${{ inputs.only && format('--only {0}', inputs.only) || '' }} --out release-out --open-pr

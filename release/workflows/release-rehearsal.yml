@@ -23,7 +23,7 @@ jobs:
       DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      CANDIDATE: qb-rehearsal-${{ github.run_id }}-${{ github.run_attempt }}
+      CANDIDATE: __CANDIDATE_PREFIX__-rehearsal-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
       - uses: actions/checkout@v5
 
@@ -52,7 +52,7 @@ jobs:
         run: |
           set -euo pipefail
           CANDIDATE="${CANDIDATE}"
-          if [[ ! "${CANDIDATE}" =~ ^qb-rehearsal-[0-9]+-[0-9]+$ ]]; then
+          if [[ ! "${CANDIDATE}" =~ ^__CANDIDATE_PREFIX__-rehearsal-[0-9]+-[0-9]+$ ]]; then
             echo "::error::candidate 格式非法: ${CANDIDATE}"
             exit 1
           fi
@@ -88,21 +88,21 @@ jobs:
 
           # GHCR candidate：FOUND→fail / ABSENT_CONFIRMED→continue / 包未创建(首次)→允许 / UNKNOWN→fail
           STG_TOK=$(curl -s -u "oauth2:${GITHUB_TOKEN}" \
-            "https://ghcr.io/token?scope=repository:cainiao524/qb-release-staging:pull&service=ghcr.io" \
+            "https://ghcr.io/token?scope=repository:cainiao524/__STAGING_PKG__:pull&service=ghcr.io" \
             | python3 -c "import json,sys; print(json.load(sys.stdin).get('token',''))" 2>/dev/null || true)
           if [ -z "${STG_TOK}" ]; then
             echo "::error::GHCR staging token acquisition failed; fail-closed"
             exit 1
           fi
           STG_CODE=$(curl -s -o /dev/null -w "%{http_code}" -H "Authorization: Bearer ${STG_TOK}" \
-            "https://ghcr.io/v2/cainiao524/qb-release-staging/tags/list")
+            "https://ghcr.io/v2/cainiao524/__STAGING_PKG__/tags/list")
           case "${STG_CODE}" in
             404)
               echo "GHCR staging package 尚未创建（首次 rehearsal）; candidate 必然不存在"
               ;;
             200)
               if curl -s -H "Authorization: Bearer ${STG_TOK}" \
-                  "https://ghcr.io/v2/cainiao524/qb-release-staging/tags/list" \
+                  "https://ghcr.io/v2/cainiao524/__STAGING_PKG__/tags/list" \
                   | python3 -c "import json,sys; print('$CANDIDATE' in json.load(sys.stdin).get('tags',[]))" | grep -q "True"; then
                 echo "::error::GHCR candidate ${CANDIDATE} already exists; ownership collision"
                 exit 1
@@ -153,13 +153,13 @@ jobs:
         run: pnpm build
 
       - name: 打包 WebUI
-        run: cd dist && zip -r ../qbittorrent-next-ui.zip .
+        run: cd dist && zip -r ../__REPO__.zip .
 
       - name: 上传 WebUI artifact
         uses: actions/upload-artifact@v4
         with:
           name: rehearsal-webui-zip
-          path: qbittorrent-next-ui.zip
+          path: __REPO__.zip
           if-no-files-found: error
           overwrite: true
 
@@ -175,9 +175,9 @@ jobs:
       DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      CANDIDATE: qb-rehearsal-${{ github.run_id }}-${{ github.run_attempt }}
+      CANDIDATE: __CANDIDATE_PREFIX__-rehearsal-${{ github.run_id }}-${{ github.run_attempt }}
       DH_STAGING_REPO: lowsabishi/release-staging
-      GHCR_STAGING_REPO: ghcr.io/cainiao524/qb-release-staging
+      GHCR_STAGING_REPO: ghcr.io/cainiao524/__STAGING_PKG__
     steps:
       - uses: actions/checkout@v5
 
@@ -203,11 +203,11 @@ jobs:
           DH_STAGING_REPO="${DH_STAGING_REPO}"
           GHCR_STAGING_REPO="${GHCR_STAGING_REPO}"
           case "${DH_STAGING_REPO}:${CANDIDATE}" in
-            "lowsabishi/release-staging:qb-rehearsal-"*) ;;
+            "lowsabishi/release-staging:__CANDIDATE_PREFIX__-rehearsal-"*) ;;
             *) echo "::error::DH write ref 非法: ${DH_STAGING_REPO}:${CANDIDATE}"; exit 1;;
           esac
           case "${GHCR_STAGING_REPO}:${CANDIDATE}" in
-            "ghcr.io/cainiao524/qb-release-staging:qb-rehearsal-"*) ;;
+            "ghcr.io/cainiao524/__STAGING_PKG__:__CANDIDATE_PREFIX__-rehearsal-"*) ;;
             *) echo "::error::GHCR write ref 非法: ${GHCR_STAGING_REPO}:${CANDIDATE}"; exit 1;;
           esac
           echo "write refs asserted: ${DH_STAGING_REPO}:${CANDIDATE} + ${GHCR_STAGING_REPO}:${CANDIDATE}"
@@ -222,14 +222,14 @@ jobs:
           cache-to: type=gha,mode=max
           tags: |
             lowsabishi/release-staging:${{ env.CANDIDATE }}
-            ghcr.io/cainiao524/qb-release-staging:${{ env.CANDIDATE }}
-          outputs: type=oci,dest=qbittorrent-next-ui-rehearsal-multiarch.tar
+            ghcr.io/cainiao524/__STAGING_PKG__:${{ env.CANDIDATE }}
+          outputs: type=oci,dest=__REPO__-rehearsal-multiarch.tar
 
       - name: Upload OCI multiarch artifact
         uses: actions/upload-artifact@v4
         with:
           name: rehearsal-oci-multiarch
-          path: qbittorrent-next-ui-rehearsal-multiarch.tar
+          path: __REPO__-rehearsal-multiarch.tar
           if-no-files-found: error
           overwrite: true
 
@@ -238,10 +238,10 @@ jobs:
           set -euo pipefail
           CANDIDATE="${CANDIDATE}"
           DH_DGST=$(docker buildx imagetools inspect "lowsabishi/release-staging:${CANDIDATE}" --format '{{.Manifest.Digest}}')
-          GHCR_DGST=$(docker buildx imagetools inspect "ghcr.io/cainiao524/qb-release-staging:${CANDIDATE}" --format '{{.Manifest.Digest}}')
+          GHCR_DGST=$(docker buildx imagetools inspect "ghcr.io/cainiao524/__STAGING_PKG__:${CANDIDATE}" --format '{{.Manifest.Digest}}')
           echo "DH_STAGING_DIGEST=${DH_DGST}"
           echo "GHCR_STAGING_DIGEST=${GHCR_DGST}"
-          for ref in "lowsabishi/release-staging:${CANDIDATE}" "ghcr.io/cainiao524/qb-release-staging:${CANDIDATE}"; do
+          for ref in "lowsabishi/release-staging:${CANDIDATE}" "ghcr.io/cainiao524/__STAGING_PKG__:${CANDIDATE}"; do
             archs=$(docker buildx imagetools inspect "${ref}" --format '{{range .Manifest.Manifests}}{{.Platform.OS}}/{{.Platform.Architecture}} {{end}}')
             echo "${ref}: ${archs}"
             echo "${archs}" | grep -q "linux/amd64" || { echo "::error::${ref} 缺 amd64"; exit 1; }
@@ -274,14 +274,14 @@ jobs:
         run: |
           set -euo pipefail
           CANDIDATE="${CANDIDATE}"
-          GHCR_DGST=$(docker buildx imagetools inspect "ghcr.io/cainiao524/qb-release-staging:${CANDIDATE}" --format '{{.Manifest.Digest}}')
+          GHCR_DGST=$(docker buildx imagetools inspect "ghcr.io/cainiao524/__STAGING_PKG__:${CANDIDATE}" --format '{{.Manifest.Digest}}')
           echo "candidate=${CANDIDATE} digest=${GHCR_DGST:0:19}"
 
           STG_VER_CODE=$(curl -s -o /tmp/ghcr-versions.json -w "%{http_code}" \
             -H "Authorization: Bearer ${GITHUB_TOKEN}" \
             -H "Accept: application/vnd.github+json" \
             -H "X-GitHub-Api-Version: 2026-03-10" \
-            "https://api.github.com/user/packages/container/qb-release-staging/versions?per_page=100")
+            "https://api.github.com/user/packages/container/__STAGING_PKG__/versions?per_page=100")
           case "${STG_VER_CODE}" in
             200) ;;
             404) echo "::error::staging package not found (404); UNKNOWN state"; exit 1;;
@@ -428,11 +428,11 @@ jobs:
             -H "Authorization: Bearer ${GITHUB_TOKEN}" \
             -H "Accept: application/vnd.github+json" \
             -H "X-GitHub-Api-Version: 2026-03-10" \
-            "https://api.github.com/user/packages/container/qb-release-staging/versions/${VID}" || echo "000")
+            "https://api.github.com/user/packages/container/__STAGING_PKG__/versions/${VID}" || echo "000")
           echo "DELETE version HTTP: ${DEL_CODE}"
           if [ "${DEL_CODE}" = "204" ]; then
             sleep 3
-            RB_OUT=$(docker buildx imagetools inspect "ghcr.io/cainiao524/qb-release-staging:${CANDIDATE}" --format '{{.Manifest.Digest}}' 2>&1 || true)
+            RB_OUT=$(docker buildx imagetools inspect "ghcr.io/cainiao524/__STAGING_PKG__:${CANDIDATE}" --format '{{.Manifest.Digest}}' 2>&1 || true)
             if echo "${RB_OUT}" | grep -q "sha256:"; then
               echo "::error::GHCR candidate 删除后仍可见"; exit 1
             fi
@@ -455,7 +455,7 @@ jobs:
           echo "last-tagged message gate PASS"
 
           # ---- 完整 package inventory guard（pagination 枚举 + 单版本严格校验）----
-          INV_RESULT=$(python3 /tmp/ghcr-fallback.py inventory qb-release-staging "${VID}" "${GHCR_DGST}" "${CANDIDATE}")
+          INV_RESULT=$(python3 /tmp/ghcr-fallback.py inventory __STAGING_PKG__ "${VID}" "${GHCR_DGST}" "${CANDIDATE}")
           echo "inventory guard: ${INV_RESULT}"
           case "${INV_RESULT}" in
             GUARD_PASS) ;;
@@ -464,7 +464,7 @@ jobs:
           esac
 
           # ---- registry candidate digest 再次严格匹配 ----
-          RB3=$(docker buildx imagetools inspect "ghcr.io/cainiao524/qb-release-staging:${CANDIDATE}" --format '{{.Manifest.Digest}}' 2>&1 || true)
+          RB3=$(docker buildx imagetools inspect "ghcr.io/cainiao524/__STAGING_PKG__:${CANDIDATE}" --format '{{.Manifest.Digest}}' 2>&1 || true)
           CUR3=$(echo "${RB3}" | grep -o "sha256:[a-f0-9]*" | head -1 || true)
           if [ -z "${CUR3}" ] || [ "${CUR3}" != "${GHCR_DGST}" ]; then
             echo "::error::registry digest 复核失败 (${RB3}); 零 package DELETE"; exit 1
@@ -472,15 +472,15 @@ jobs:
           echo "registry digest 复核 PASS"
 
           # ---- whole-package DELETE 目标白名单（硬编码，禁止变量构造 production 名）----
-          case "qb-release-staging" in
-            qb-release-staging) ;;
+          case "__STAGING_PKG__" in
+            __STAGING_PKG__) ;;
             *) echo "::error::whole-package DELETE 白名单拒绝; 零 DELETE"; exit 1;;
           esac
-          case "https://api.github.com/user/packages/container/qb-release-staging" in
+          case "https://api.github.com/user/packages/container/__STAGING_PKG__" in
             *qbittorrent-next-ui*|*transmission-next-vibemod*)
               echo "::error::静态断言失败: production package 名出现在 whole-package DELETE URL"; exit 1;;
           esac
-          PKG_ASSERT=$(python3 /tmp/ghcr-fallback.py pkg_assert qb-release-staging)
+          PKG_ASSERT=$(python3 /tmp/ghcr-fallback.py pkg_assert __STAGING_PKG__)
           [ "${PKG_ASSERT}" = "PKG_ASSERT_PASS" ] || { echo "::error::pkg_assert 失败: ${PKG_ASSERT}"; exit 1; }
           echo "whole-package DELETE 白名单断言 PASS"
 
@@ -489,7 +489,7 @@ jobs:
             -H "Authorization: Bearer ${GITHUB_TOKEN}" \
             -H "Accept: application/vnd.github+json" \
             -H "X-GitHub-Api-Version: 2026-03-10" \
-            "https://api.github.com/user/packages/container/qb-release-staging" || echo "000")
+            "https://api.github.com/user/packages/container/__STAGING_PKG__" || echo "000")
           echo "DELETE whole package HTTP: ${PKG_CODE}"
           if [ "${PKG_CODE}" != "204" ]; then
             echo "::error::whole-package DELETE failed (HTTP ${PKG_CODE}); fail-closed"
@@ -503,12 +503,12 @@ jobs:
             -H "Authorization: Bearer ${GITHUB_TOKEN}" \
             -H "Accept: application/vnd.github+json" \
             -H "X-GitHub-Api-Version: 2026-03-10" \
-            "https://api.github.com/user/packages/container/qb-release-staging" 2>/dev/null || echo "000")
+            "https://api.github.com/user/packages/container/__STAGING_PKG__" 2>/dev/null || echo "000")
           echo "REST package read-back: HTTP ${REST_CODE}（404=PACKAGE_ABSENT_CONFIRMED）"
           if [ "${REST_CODE}" != "404" ]; then
             echo "::error::REST package 仍可访问 HTTP ${REST_CODE}; fail-closed"; exit 1
           fi
-          RB2=$(docker buildx imagetools inspect "ghcr.io/cainiao524/qb-release-staging:${CANDIDATE}" --format '{{.Manifest.Digest}}' 2>&1 || true)
+          RB2=$(docker buildx imagetools inspect "ghcr.io/cainiao524/__STAGING_PKG__:${CANDIDATE}" --format '{{.Manifest.Digest}}' 2>&1 || true)
           if echo "${RB2}" | grep -qi "not found\|no such\|unknown manifest"; then
             echo "::notice::GHCR staging DELETE capability verified (whole-package last-tagged fallback 204 + REST 404 + registry ABSENT_CONFIRMED; cleanup_mode=whole_package_last_tagged_fallback)"
           elif echo "${RB2}" | grep -q "sha256:"; then
@@ -523,15 +523,15 @@ jobs:
           set -euo pipefail
           CANDIDATE="${CANDIDATE}"
           DH_DGST=$(docker buildx imagetools inspect "lowsabishi/release-staging:${CANDIDATE}" --format '{{.Manifest.Digest}}')
-          case "ghcr.io/cainiao524/qb-release-staging:${CANDIDATE}" in
-            "ghcr.io/cainiao524/qb-release-staging:qb-rehearsal-"*) ;;
+          case "ghcr.io/cainiao524/__STAGING_PKG__:${CANDIDATE}" in
+            "ghcr.io/cainiao524/__STAGING_PKG__:__CANDIDATE_PREFIX__-rehearsal-"*) ;;
             *) echo "::error::恢复写目标非法"; exit 1;;
           esac
           docker buildx imagetools create \
-            -t "ghcr.io/cainiao524/qb-release-staging:${CANDIDATE}" \
+            -t "ghcr.io/cainiao524/__STAGING_PKG__:${CANDIDATE}" \
             "lowsabishi/release-staging@${DH_DGST}"
-          NEW_DGST=$(docker buildx imagetools inspect "ghcr.io/cainiao524/qb-release-staging:${CANDIDATE}" --format '{{.Manifest.Digest}}')
-          archs=$(docker buildx imagetools inspect "ghcr.io/cainiao524/qb-release-staging:${CANDIDATE}" --format '{{range .Manifest.Manifests}}{{.Platform.OS}}/{{.Platform.Architecture}} {{end}}')
+          NEW_DGST=$(docker buildx imagetools inspect "ghcr.io/cainiao524/__STAGING_PKG__:${CANDIDATE}" --format '{{.Manifest.Digest}}')
+          archs=$(docker buildx imagetools inspect "ghcr.io/cainiao524/__STAGING_PKG__:${CANDIDATE}" --format '{{range .Manifest.Manifests}}{{.Platform.OS}}/{{.Platform.Architecture}} {{end}}')
           echo "restored GHCR candidate: ${NEW_DGST} archs=${archs}"
           echo "${archs}" | grep -q "linux/amd64"
           echo "${archs}" | grep -q "linux/arm64"
@@ -562,7 +562,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      CANDIDATE: qb-rehearsal-${{ github.run_id }}-${{ github.run_attempt }}
+      CANDIDATE: __CANDIDATE_PREFIX__-rehearsal-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
       - uses: actions/checkout@v5
 
@@ -589,29 +589,29 @@ jobs:
         run: |
           set -euo pipefail
           CANDIDATE="${CANDIDATE}"
-          docker pull --platform linux/amd64 "ghcr.io/cainiao524/qb-release-staging:${CANDIDATE}"
+          docker pull --platform linux/amd64 "ghcr.io/cainiao524/__STAGING_PKG__:${CANDIDATE}"
           # P1-2：验证实际架构，不依赖文件名
-          ARCH_AMD=$(docker image inspect --format '{{.Architecture}}' "ghcr.io/cainiao524/qb-release-staging:${CANDIDATE}")
+          ARCH_AMD=$(docker image inspect --format '{{.Architecture}}' "ghcr.io/cainiao524/__STAGING_PKG__:${CANDIDATE}")
           echo "amd64 实际架构: ${ARCH_AMD}"
           [ "${ARCH_AMD}" = "amd64" ] || { echo "::error::amd64 导出架构不符: ${ARCH_AMD}"; exit 1; }
-          docker save "ghcr.io/cainiao524/qb-release-staging:${CANDIDATE}" | gzip > qbittorrent-next-ui-rehearsal-docker-amd64.tar.gz
-          docker pull --platform linux/arm64 "ghcr.io/cainiao524/qb-release-staging:${CANDIDATE}"
-          ARCH_ARM=$(docker image inspect --format '{{.Architecture}}' "ghcr.io/cainiao524/qb-release-staging:${CANDIDATE}")
+          docker save "ghcr.io/cainiao524/__STAGING_PKG__:${CANDIDATE}" | gzip > __REPO__-rehearsal-docker-amd64.tar.gz
+          docker pull --platform linux/arm64 "ghcr.io/cainiao524/__STAGING_PKG__:${CANDIDATE}"
+          ARCH_ARM=$(docker image inspect --format '{{.Architecture}}' "ghcr.io/cainiao524/__STAGING_PKG__:${CANDIDATE}")
           echo "arm64 实际架构: ${ARCH_ARM}"
           [ "${ARCH_ARM}" = "arm64" ] || { echo "::error::arm64 导出架构不符: ${ARCH_ARM}"; exit 1; }
-          docker save "ghcr.io/cainiao524/qb-release-staging:${CANDIDATE}" | gzip > qbittorrent-next-ui-rehearsal-docker-arm64.tar.gz
-          gzip -f -k qbittorrent-next-ui-rehearsal-multiarch.tar
-          mv qbittorrent-next-ui-rehearsal-multiarch.tar.gz qbittorrent-next-ui-rehearsal-docker-multiarch.tar.gz
+          docker save "ghcr.io/cainiao524/__STAGING_PKG__:${CANDIDATE}" | gzip > __REPO__-rehearsal-docker-arm64.tar.gz
+          gzip -f -k __REPO__-rehearsal-multiarch.tar
+          mv __REPO__-rehearsal-multiarch.tar.gz __REPO__-rehearsal-docker-multiarch.tar.gz
           ls -la *.tar.gz
 
       - name: 生成 SHA256SUMS.txt + 验证
         run: |
           set -euo pipefail
           sha256sum \
-            qbittorrent-next-ui.zip \
-            qbittorrent-next-ui-rehearsal-docker-amd64.tar.gz \
-            qbittorrent-next-ui-rehearsal-docker-arm64.tar.gz \
-            qbittorrent-next-ui-rehearsal-docker-multiarch.tar.gz > SHA256SUMS.txt
+            __REPO__.zip \
+            __REPO__-rehearsal-docker-amd64.tar.gz \
+            __REPO__-rehearsal-docker-arm64.tar.gz \
+            __REPO__-rehearsal-docker-multiarch.tar.gz > SHA256SUMS.txt
           cat SHA256SUMS.txt
           sha256sum -c SHA256SUMS.txt
           echo "::notice::SHA256SUMS verified"
@@ -621,10 +621,10 @@ jobs:
         with:
           name: rehearsal-assets
           path: |
-            qbittorrent-next-ui.zip
-            qbittorrent-next-ui-rehearsal-docker-amd64.tar.gz
-            qbittorrent-next-ui-rehearsal-docker-arm64.tar.gz
-            qbittorrent-next-ui-rehearsal-docker-multiarch.tar.gz
+            __REPO__.zip
+            __REPO__-rehearsal-docker-amd64.tar.gz
+            __REPO__-rehearsal-docker-arm64.tar.gz
+            __REPO__-rehearsal-docker-multiarch.tar.gz
             SHA256SUMS.txt
           if-no-files-found: error
           overwrite: true
@@ -642,7 +642,7 @@ jobs:
       DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      CANDIDATE: qb-rehearsal-${{ github.run_id }}-${{ github.run_attempt }}
+      CANDIDATE: __CANDIDATE_PREFIX__-rehearsal-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
       - uses: actions/checkout@v5
 
@@ -800,7 +800,7 @@ jobs:
           PYEOF
 
           # 入口重新验证 candidate（guard 失败时无 outputs 可依赖，必须自行校验）
-          if [[ ! "${CANDIDATE}" =~ ^qb-rehearsal-[0-9]+-[0-9]+$ ]]; then
+          if [[ ! "${CANDIDATE}" =~ ^__CANDIDATE_PREFIX__-rehearsal-[0-9]+-[0-9]+$ ]]; then
             echo "::error::candidate 非法或为空: '${CANDIDATE}'；不执行任何 DELETE"
             echo "## REHEARSAL_PARTIAL" >> "$GITHUB_STEP_SUMMARY"
             echo "- repository: ${{ github.repository }}" >> "$GITHUB_STEP_SUMMARY"
@@ -866,7 +866,7 @@ jobs:
           fi
 
           # --- GHCR candidate cleanup（Bug3 顺序）：先 exact candidate read-back，再 digest ---
-          RB_OUT=$(docker buildx imagetools inspect "ghcr.io/cainiao524/qb-release-staging:${CANDIDATE}" --format '{{.Manifest.Digest}}' 2>&1 || true)
+          RB_OUT=$(docker buildx imagetools inspect "ghcr.io/cainiao524/__STAGING_PKG__:${CANDIDATE}" --format '{{.Manifest.Digest}}' 2>&1 || true)
           if echo "${RB_OUT}" | grep -qi "not found\|no such\|unknown manifest"; then
             GHCR_OK=true
           elif echo "${RB_OUT}" | grep -q "sha256:"; then
@@ -882,7 +882,7 @@ jobs:
                 -H "Authorization: Bearer ${GITHUB_TOKEN}" \
                 -H "Accept: application/vnd.github+json" \
                 -H "X-GitHub-Api-Version: 2026-03-10" \
-                "https://api.github.com/user/packages/container/qb-release-staging/versions?per_page=100" 2>/dev/null || echo "000")
+                "https://api.github.com/user/packages/container/__STAGING_PKG__/versions?per_page=100" 2>/dev/null || echo "000")
               if [ "${VER_CODE}" != "200" ]; then
                 GHCR_LEFTOVER="REST versions HTTP ${VER_CODE} (UNKNOWN; 禁止删除)"
               else
@@ -894,10 +894,10 @@ jobs:
                       -H "Authorization: Bearer ${GITHUB_TOKEN}" \
                       -H "Accept: application/vnd.github+json" \
                       -H "X-GitHub-Api-Version: 2026-03-10" \
-                      "https://api.github.com/user/packages/container/qb-release-staging/versions/${VID}" 2>/dev/null || echo "000")
+                      "https://api.github.com/user/packages/container/__STAGING_PKG__/versions/${VID}" 2>/dev/null || echo "000")
                     if [ "${DEL_CODE}" = "204" ]; then
                       sleep 3
-                      RB2=$(docker buildx imagetools inspect "ghcr.io/cainiao524/qb-release-staging:${CANDIDATE}" --format '{{.Manifest.Digest}}' 2>&1 || true)
+                      RB2=$(docker buildx imagetools inspect "ghcr.io/cainiao524/__STAGING_PKG__:${CANDIDATE}" --format '{{.Manifest.Digest}}' 2>&1 || true)
                       if echo "${RB2}" | grep -qi "not found\|no such\|unknown manifest"; then
                         GHCR_OK=true
                       elif echo "${RB2}" | grep -q "sha256:"; then
@@ -914,7 +914,7 @@ jobs:
                         GHCR_LEFTOVER="delete HTTP 400 但 message 不匹配 last-tagged; 禁止 package DELETE"
                       else
                         # ---- 完整 inventory guard（pagination 枚举 + 单版本严格校验）----
-                        INV_RESULT=$(python3 /tmp/ghcr-fallback.py inventory qb-release-staging "${VID}" "${GHCR_TARGET}" "${CANDIDATE}")
+                        INV_RESULT=$(python3 /tmp/ghcr-fallback.py inventory __STAGING_PKG__ "${VID}" "${GHCR_TARGET}" "${CANDIDATE}")
                         echo "inventory guard: ${INV_RESULT}"
                         case "${INV_RESULT}" in
                           GUARD_PASS) ;;
@@ -922,22 +922,22 @@ jobs:
                         esac
                         if [ -z "${GHCR_LEFTOVER}" ]; then
                           # ---- registry digest 复核 ----
-                          RB3=$(docker buildx imagetools inspect "ghcr.io/cainiao524/qb-release-staging:${CANDIDATE}" --format '{{.Manifest.Digest}}' 2>&1 || true)
+                          RB3=$(docker buildx imagetools inspect "ghcr.io/cainiao524/__STAGING_PKG__:${CANDIDATE}" --format '{{.Manifest.Digest}}' 2>&1 || true)
                           CUR3=$(echo "${RB3}" | grep -o "sha256:[a-f0-9]*" | head -1 || true)
                           if [ -z "${CUR3}" ] || [ "${CUR3}" != "${GHCR_TARGET}" ]; then
                             GHCR_LEFTOVER="registry digest 复核失败 (${RB3}); 禁止 package DELETE"
                           else
                             # ---- whole-package DELETE 白名单断言 ----
-                            case "qb-release-staging" in
-                              qb-release-staging) ;;
+                            case "__STAGING_PKG__" in
+                              __STAGING_PKG__) ;;
                               *) GHCR_LEFTOVER="whole-package DELETE 白名单拒绝; 禁止 DELETE";;
                             esac
-                            case "https://api.github.com/user/packages/container/qb-release-staging" in
+                            case "https://api.github.com/user/packages/container/__STAGING_PKG__" in
                               *qbittorrent-next-ui*|*transmission-next-vibemod*)
                                 GHCR_LEFTOVER="静态断言失败: production 名出现在 whole-package DELETE URL";;
                             esac
                             if [ -z "${GHCR_LEFTOVER}" ]; then
-                              PKG_ASSERT=$(python3 /tmp/ghcr-fallback.py pkg_assert qb-release-staging)
+                              PKG_ASSERT=$(python3 /tmp/ghcr-fallback.py pkg_assert __STAGING_PKG__)
                               if [ "${PKG_ASSERT}" != "PKG_ASSERT_PASS" ]; then
                                 GHCR_LEFTOVER="pkg_assert 失败: ${PKG_ASSERT}"
                               else
@@ -946,7 +946,7 @@ jobs:
                                   -H "Authorization: Bearer ${GITHUB_TOKEN}" \
                                   -H "Accept: application/vnd.github+json" \
                                   -H "X-GitHub-Api-Version: 2026-03-10" \
-                                  "https://api.github.com/user/packages/container/qb-release-staging" 2>/dev/null || echo "000")
+                                  "https://api.github.com/user/packages/container/__STAGING_PKG__" 2>/dev/null || echo "000")
                                 echo "DELETE whole package HTTP: ${PKG_CODE}"
                                 if [ "${PKG_CODE}" != "204" ]; then
                                   GHCR_LEFTOVER="whole-package DELETE HTTP ${PKG_CODE}"
@@ -957,12 +957,12 @@ jobs:
                                     -H "Authorization: Bearer ${GITHUB_TOKEN}" \
                                     -H "Accept: application/vnd.github+json" \
                                     -H "X-GitHub-Api-Version: 2026-03-10" \
-                                    "https://api.github.com/user/packages/container/qb-release-staging" 2>/dev/null || echo "000")
+                                    "https://api.github.com/user/packages/container/__STAGING_PKG__" 2>/dev/null || echo "000")
                                   echo "REST package read-back: HTTP ${REST_CODE}"
                                   if [ "${REST_CODE}" != "404" ]; then
                                     GHCR_LEFTOVER="REST package 仍可访问 HTTP ${REST_CODE}"
                                   else
-                                    RB4=$(docker buildx imagetools inspect "ghcr.io/cainiao524/qb-release-staging:${CANDIDATE}" --format '{{.Manifest.Digest}}' 2>&1 || true)
+                                    RB4=$(docker buildx imagetools inspect "ghcr.io/cainiao524/__STAGING_PKG__:${CANDIDATE}" --format '{{.Manifest.Digest}}' 2>&1 || true)
                                     if echo "${RB4}" | grep -qi "not found\|no such\|unknown manifest"; then
                                       GHCR_OK=true
                                       echo "::notice::GHCR cleanup via whole-package last-tagged fallback (204 + REST 404 + registry ABSENT_CONFIRMED)"

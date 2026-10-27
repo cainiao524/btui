@@ -17,8 +17,8 @@ jobs:
         env:
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
           DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
-          REPO_NAME: lowsabishi/qbittorrent-next-ui
-          TAG_SUFFIX: funky9
+          REPO_NAME: lowsabishi/__REPO__
+          TAG_SUFFIX: __TAG_SUFFIX__
         run: |
           python3 - <<'PYEOF'
           import json, os, re, urllib.request, urllib.error
@@ -50,7 +50,7 @@ jobs:
 
           with open("package.json", encoding="utf-8") as package_file:
               version = json.load(package_file)["version"]
-          if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", version):
+          if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9]+)?", version):
               raise SystemExit(f"invalid package version: {version}")
 
           tag = f"v{version}-{suffix}"
@@ -68,7 +68,7 @@ jobs:
           template = open("DOCKERHUB.md", encoding="utf-8").read()
           if template.count(placeholder) != 1:
               raise SystemExit(f"DOCKERHUB.md must contain exactly one {placeholder}")
-          concrete_tag_pattern = rf"v[0-9]+\.[0-9]+\.[0-9]+-{re.escape(suffix)}"
+          concrete_tag_pattern = rf"v[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9]+)?-{re.escape(suffix)}"
           if re.search(concrete_tag_pattern, template):
               raise SystemExit("DOCKERHUB.md contains a hard-coded release tag")
           full_desc = template.replace(placeholder, tag)
@@ -79,7 +79,7 @@ jobs:
           if tag_status != 200:
               raise SystemExit(f"Docker Hub tag does not exist: {tag}")
 
-          short_desc = "面向 qBittorrent 的现代化响应式第三方 WebUI"
+          short_desc = "__DOCKERHUB_SHORT_DESC__"
           status2, text2 = api("PATCH", f"https://hub.docker.com/v2/repositories/{repo}/",
                                {"description": short_desc, "full_description": full_desc}, jwt)
           print("patch status:", status2)
