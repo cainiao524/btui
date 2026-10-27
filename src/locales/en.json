@@ -718,11 +718,21 @@
     "clear": "Clear selection"
   },
   "filters": {
+    "categories": "Categories",
     "remove": "Remove filter",
     "trackers": "Trackers",
     "dirs": "Folders",
     "labels": "Labels",
     "show_all": "Show all {count}",
     "show_less": "Show less"
+  },
+  "empty": {
+    "none_title": "No torrents yet",
+    "none_desc": "Add a magnet link or a .torrent file to start, or drop files anywhere on the page.",
+    "no_match_title": "No matching torrents",
+    "no_match_desc": "Try a different search or remove some filters.",
+    "status_title": "Nothing here right now",
+    "status_desc": "Torrents show up here automatically when their state changes.",
+    "clear": "Clear search and filters"
   }
 }

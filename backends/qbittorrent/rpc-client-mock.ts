@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import type { ApplicationPreferences, Session, TorrentCreatorTask, TorrentFilePriority, TorrentPieceState } from "@/lib/rpc-types";
+import type { ApplicationPreferences, Session, TorrentCreatorArgs, TorrentCreatorTask, TorrentFilePriority, TorrentPieceState } from "@/lib/rpc-types";
 import { MOCK_SESSION, MOCK_STATS, MOCK_TORRENTS } from "@/lib/mock-data";
 import { APP_CONFIG } from "./config";
 
@@ -249,7 +249,9 @@ class QBittorrentRPCMock {
     this.updateTorrents(ids, (torrent) => { torrent.autoManagement = enable; });
   }
 
-  async changeQueuePriority() {}
+  async changeQueuePriority(ids: string[], direction: "top" | "up" | "down" | "bottom") {
+    void ids; void direction;
+  }
 
   async setTorrentSavePath(ids: string[], path: string) {
     this.updateTorrents(ids, (torrent) => { torrent.downloadDir = path; });
@@ -263,7 +265,8 @@ class QBittorrentRPCMock {
     return { blob: mockTorrentFile(id), filename: `${id}.torrent` };
   }
 
-  async createTorrent(): Promise<{ taskID: string }> {
+  async createTorrent(args: TorrentCreatorArgs): Promise<{ taskID: string }> {
+    void args;
     return { taskID: `mock-${Date.now()}` };
   }
 
@@ -275,7 +278,9 @@ class QBittorrentRPCMock {
     return { blob: mockTorrentFile(taskID), filename: `${taskID}.torrent` };
   }
 
-  async deleteTorrentCreatorTask(): Promise<void> {}
+  async deleteTorrentCreatorTask(taskID: string): Promise<void> {
+    void taskID;
+  }
 
   private updateTorrents(ids: string[], update: (torrent: (typeof MOCK_TORRENTS)[number]) => void) {
     MOCK_TORRENTS.filter((torrent) => ids.includes(torrent.id) || ids.includes(torrent.hashString)).forEach(update);

@@ -188,10 +188,10 @@ class TransmissionRPCMock {
   }
 
   // Unsupported by Transmission; hidden through APP_CONFIG.capabilities, same errors as the real client.
-  async toggleSequentialDownload(): Promise<never> { throw new Error("Transmission 当前版本不支持顺序下载开关"); }
-  async toggleFirstLastPiecePriority(): Promise<never> { throw new Error("Transmission 不支持首尾区块优先开关"); }
-  async setSuperSeeding(): Promise<never> { throw new Error("Transmission 不支持超级做种"); }
-  async setAutoManagement(): Promise<never> { throw new Error("Transmission 不支持自动种子管理"); }
+  async toggleSequentialDownload(ids: string[]): Promise<never> { void ids; throw new Error("Transmission 当前版本不支持顺序下载开关"); }
+  async toggleFirstLastPiecePriority(ids: string[]): Promise<never> { void ids; throw new Error("Transmission 不支持首尾区块优先开关"); }
+  async setSuperSeeding(ids: string[], value: boolean): Promise<never> { void ids; void value; throw new Error("Transmission 不支持超级做种"); }
+  async setAutoManagement(ids: string[], value: boolean): Promise<never> { void ids; void value; throw new Error("Transmission 不支持自动种子管理"); }
 
   async changeQueuePriority(ids: string[], direction: "top" | "up" | "down" | "bottom") {
     return this.request(`queue-move-${direction}`, { ids });

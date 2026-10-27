@@ -3,7 +3,7 @@
 import * as React from "react"
 import type { TorrentOverview } from "@/lib/torrent-list-utils"
 
-export type FacetKind = "tracker" | "dir" | "label"
+export type FacetKind = "tracker" | "dir" | "label" | "category"
 
 interface TorrentOverviewContextType {
   overview: TorrentOverview | null
@@ -11,6 +11,7 @@ interface TorrentOverviewContextType {
   trackerFilter: string[]
   dirFilter: string[]
   labelFilter: string[]
+  categoryFilter: string[]
   toggleFacet: (kind: FacetKind, value: string) => void
   clearFilters: () => void
 }
@@ -30,17 +31,20 @@ export function TorrentOverviewProvider({ children }: { children: React.ReactNod
   const [trackerFilter, setTrackerFilter] = React.useState<string[]>([])
   const [dirFilter, setDirFilter] = React.useState<string[]>([])
   const [labelFilter, setLabelFilter] = React.useState<string[]>([])
+  const [categoryFilter, setCategoryFilter] = React.useState<string[]>([])
 
   const toggleFacet = React.useCallback((kind: FacetKind, value: string) => {
     if (kind === "tracker") setTrackerFilter((current) => toggleValue(current, value))
     else if (kind === "dir") setDirFilter((current) => toggleValue(current, value))
-    else setLabelFilter((current) => toggleValue(current, value))
+    else if (kind === "label") setLabelFilter((current) => toggleValue(current, value))
+    else setCategoryFilter((current) => toggleValue(current, value))
   }, [])
 
   const clearFilters = React.useCallback(() => {
     setTrackerFilter([])
     setDirFilter([])
     setLabelFilter([])
+    setCategoryFilter([])
   }, [])
 
   const value = React.useMemo(() => ({
@@ -49,9 +53,10 @@ export function TorrentOverviewProvider({ children }: { children: React.ReactNod
     trackerFilter,
     dirFilter,
     labelFilter,
+    categoryFilter,
     toggleFacet,
     clearFilters,
-  }), [overview, trackerFilter, dirFilter, labelFilter, toggleFacet, clearFilters])
+  }), [overview, trackerFilter, dirFilter, labelFilter, categoryFilter, toggleFacet, clearFilters])
 
   return <TorrentOverviewContext.Provider value={value}>{children}</TorrentOverviewContext.Provider>
 }

@@ -9,13 +9,14 @@ import { cn } from "@/lib/utils"
 import { useI18n } from "@/lib/i18n-context"
 import { useTorrentOverview, type FacetKind } from "@/lib/torrent-overview-context"
 import type { FacetCount } from "@/lib/torrent-list-utils"
+import { APP_CONFIG } from "@/lib/config"
 
 const LIST_ROUTES = new Set(["/", "/active", "/downloading", "/seeding", "/paused", "/errors"])
 const COLLAPSED_LIMIT = 6
 const STORAGE_KEY = "sidebar-facet-groups"
 
 type GroupState = Record<FacetKind, boolean>
-const DEFAULT_GROUP_STATE: GroupState = { tracker: true, dir: true, label: false }
+const DEFAULT_GROUP_STATE: GroupState = { category: true, tracker: true, dir: true, label: false }
 
 function readGroupState(): GroupState {
   try {
@@ -100,7 +101,7 @@ export function SidebarFacetGroups() {
   const { t } = useI18n()
   const { pathname } = useLocation()
   const navigate = useNavigate()
-  const { overview, trackerFilter, dirFilter, labelFilter, toggleFacet } = useTorrentOverview()
+  const { overview, trackerFilter, dirFilter, labelFilter, categoryFilter, toggleFacet } = useTorrentOverview()
   const [groupState, setGroupState] = React.useState(readGroupState)
 
   if (!overview) return null
@@ -119,6 +120,9 @@ export function SidebarFacetGroups() {
   }
 
   const groups: { kind: FacetKind; title: string; items: FacetCount[]; selected: string[] }[] = [
+    ...(APP_CONFIG.capabilities.categories
+      ? [{ kind: "category" as const, title: t("filters.categories"), items: overview.categories, selected: categoryFilter }]
+      : []),
     { kind: "tracker", title: t("filters.trackers"), items: overview.trackers, selected: trackerFilter },
     { kind: "dir", title: t("filters.dirs"), items: overview.downloadDirs, selected: dirFilter },
     { kind: "label", title: t("filters.labels"), items: overview.labels, selected: labelFilter },

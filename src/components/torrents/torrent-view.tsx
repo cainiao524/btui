@@ -22,6 +22,7 @@ import { TorrentToolbar } from "@/components/torrents/torrent-toolbar"
 import { KeyboardShortcutsDialog } from "@/components/torrents/keyboard-shortcuts-dialog"
 import { TorrentSelectionBar } from "@/components/torrents/torrent-selection-bar"
 import { TorrentStatsBar } from "@/components/torrents/torrent-stats-bar"
+import { TorrentEmptyState } from "@/components/torrents/torrent-empty-state"
 import { SpeedHistoryChart } from "@/components/torrents/speed-history-chart"
 import { useAppSettings } from "@/lib/app-settings-context"
 import { exportTorrentFile } from "@/lib/torrent-export"
@@ -47,12 +48,12 @@ interface TorrentViewProps {
 export function TorrentView({ statusFilter, showStats = true, isActive = true }: TorrentViewProps) {
   const isMobile = useIsMobile()
   const [viewMode, setViewMode] = useState<"list" | "grid">("list")
-  const { showSpeedChart, animateTorrentSorting, torrentListDensity } = useAppSettings()
+  const { showSpeedChart, setShowSpeedChart, animateTorrentSorting, torrentListDensity } = useAppSettings()
   const [selectedIds, setSelectedIds] = useState<TorrentId[]>([])
   const [selectionAnchorId, setSelectionAnchorId] = useState<TorrentId | null>(null)
   const [sortConfig, setSortConfig] = useState<SortConfig | null>({ key: "addedDate", direction: "desc" })
   const { t, locale } = useI18n()
-  const { searchQuery } = useSearch()
+  const { searchQuery, setSearchQuery } = useSearch()
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [isBatchReplaceOpen, setIsBatchReplaceOpen] = useState(false)
   const [isBatchMoveOpen, setIsBatchMoveOpen] = useState(false)
@@ -78,7 +79,6 @@ export function TorrentView({ statusFilter, showStats = true, isActive = true }:
 
   const { torrents, stats, freeSpace, isInitialLoading, fetchData } = useTorrentData(viewMode, visibleColumns, isActive)
   const speedHistory = useSpeedHistory(showStats ? stats : null)
-  const [chartExpanded, setChartExpanded] = useState(showSpeedChart)
   const { setOverview, toggleFacet } = useTorrentOverview()
 
   useEffect(() => {
@@ -90,6 +90,7 @@ export function TorrentView({ statusFilter, showStats = true, isActive = true }:
     trackerFilter,
     dirFilter,
     labelFilter,
+    categoryFilter,
     toggleTracker,
     toggleDir,
     toggleLabel,
@@ -101,10 +102,11 @@ export function TorrentView({ statusFilter, showStats = true, isActive = true }:
   } = useTorrentFilters(torrents, deferredStatusFilter, searchQuery)
 
   const activeFilters = useMemo(() => [
+    ...categoryFilter.map((value) => ({ kind: "category" as const, value })),
     ...trackerFilter.map((value) => ({ kind: "tracker" as const, value })),
     ...dirFilter.map((value) => ({ kind: "dir" as const, value })),
     ...labelFilter.map((value) => ({ kind: "label" as const, value })),
-  ], [dirFilter, labelFilter, trackerFilter])
+  ], [categoryFilter, dirFilter, labelFilter, trackerFilter])
 
   const totalDownloadSpeed = useMemo(() =>
     torrents.reduce((acc, tor) => acc + (tor.rateDownload || 0), 0)
@@ -308,10 +310,10 @@ export function TorrentView({ statusFilter, showStats = true, isActive = true }:
               downloadSpeed={totalDownloadSpeed}
               uploadSpeed={totalUploadSpeed}
               history={speedHistory}
-              chartExpanded={chartExpanded}
-              onToggleChart={() => setChartExpanded((current) => !current)}
+              chartExpanded={showSpeedChart}
+              onToggleChart={() => setShowSpeedChart(!showSpeedChart)}
             />
-            {chartExpanded && <SpeedHistoryChart stats={stats} history={speedHistory} />}
+            {showSpeedChart && <SpeedHistoryChart stats={stats} history={speedHistory} />}
           </div>
         ) : (
           <div className="skeleton-gradient h-[84px] rounded-2xl border border-muted/30 bg-muted/20" />
@@ -391,6 +393,13 @@ export function TorrentView({ statusFilter, showStats = true, isActive = true }:
               <div key={item} className="skeleton-gradient h-14 border-t border-muted/30 bg-muted/15" />
             ))}
           </div>
+        ) : sortedTorrents.length === 0 ? (
+          <TorrentEmptyState
+            hasTorrents={torrents.length > 0}
+            isFiltered={activeFilters.length > 0 || searchQuery.trim().length > 0}
+            onAdd={() => window.dispatchEvent(new Event(APP_CONFIG.events.addTorrent))}
+            onClearFilters={() => { clearFilters(); setSearchQuery("") }}
+          />
         ) : (
           <div>
             {viewMode === "list" ? (

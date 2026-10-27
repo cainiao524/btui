@@ -16,7 +16,7 @@ export function useTorrentFilters(
   searchQuery: string
 ) {
   const { t } = useI18n()
-  const { trackerFilter, dirFilter, labelFilter, toggleFacet, clearFilters } = useTorrentOverview()
+  const { trackerFilter, dirFilter, labelFilter, categoryFilter, toggleFacet, clearFilters } = useTorrentOverview()
 
   const trackers = useMemo(() => getAvailableTrackers(torrents), [torrents])
 
@@ -30,8 +30,9 @@ export function useTorrentFilters(
     trackerFilter,
     dirFilter,
     labelFilter,
+    categoryFilter,
     translateStatus: (statusKey) => t(statusKey),
-  }), [torrents, statusFilter, trackerFilter, dirFilter, labelFilter, searchQuery, t])
+  }), [torrents, statusFilter, trackerFilter, dirFilter, labelFilter, categoryFilter, searchQuery, t])
 
   const toggleTracker = (host: string) => toggleFacet("tracker", host)
   const toggleDir = (path: string) => toggleFacet("dir", path)
@@ -41,6 +42,7 @@ export function useTorrentFilters(
     trackerFilter,
     dirFilter,
     labelFilter,
+    categoryFilter,
     toggleTracker,
     toggleDir,
     toggleLabel,
