@@ -52,6 +52,6 @@ pnpm lint && pnpm typecheck && pnpm test && pnpm build:all
 
 任一步失败都会停下，不会只发一半。不改版本号的合并不会触发发布。
 
-需要在本仓库配置 `SYNC_TOKEN`：只授权两个发布仓库的 fine-grained PAT，权限为 Contents、Pull requests、Workflows 读写。
+需要在本仓库配置 `SYNC_TOKEN`：只授权两个发布仓库的 fine-grained PAT，权限为 Contents、Pull requests、Workflows 读写。配好后在 Actions 运行「令牌自检（SYNC_TOKEN）」：默认只读，不改动发布仓库；勾选 `full` 会在每个发布仓库推临时分支、开草稿 PR，验证三项写权限，之后自动关闭并删除，不触发构建或发布。
 
 第一次同步会改动发布仓库的整体结构，所以只开草稿 PR，需要人工审阅后合并。手动同步可在 Actions 运行「同步到发布仓库」，或在本地运行 `pnpm release --open-pr`（使用已登录的 gh CLI）。`pnpm release` 不带 `--open-pr` 时只在本地生成 `release-out/`，不会推送任何东西。

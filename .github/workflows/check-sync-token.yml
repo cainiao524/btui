@@ -1,0 +1,124 @@
+name: 令牌自检（SYNC_TOKEN）
+
+# 手动运行，检查 SYNC_TOKEN 对两个发布仓库的权限。
+# - 只读检查（默认）：读取仓库信息，并用 git push --dry-run 验证推送权限。发布仓库不会有任何变化。
+# - 完整检查（full=true）：在每个发布仓库推两个临时分支（其中一个改动 workflow 文件），
+#   在两个临时分支之间开草稿 PR，随后关闭 PR 并删除分支。PR 不指向 main，
+#   不会触发发布仓库的构建或发布；仓库 PR 列表里会留下一条已关闭的记录。
+on:
+  workflow_dispatch:
+    inputs:
+      full:
+        description: "完整检查：实际推送临时分支并开、关草稿 PR（验证 Contents / Workflows / Pull requests 写权限）"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: check-sync-token
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+      FULL: ${{ inputs.full }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: 凭据检查
+        run: |
+          if [ -z "${GH_TOKEN}" ]; then
+            echo "::error::缺少 SYNC_TOKEN secret"
+            exit 1
+          fi
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          gh auth setup-git
+
+      - name: 只读检查
+        run: |
+          set -uo pipefail
+          status=0
+          echo "| 仓库 | 读取仓库 | 推送权限（dry-run） |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|---|" >> "$GITHUB_STEP_SUMMARY"
+          scratch=$(mktemp -d)
+          git -C "$scratch" init -q
+          git -C "$scratch" commit -q --allow-empty -m "sync token check"
+          for release in backends/*/release.json; do
+            repo=$(node -p "require('./${release}').repository")
+            read_ok="❌"; push_ok="❌"
+            if gh api "repos/${repo}" --jq .full_name >/dev/null; then read_ok="✅"; else status=1; fi
+            if git -C "$scratch" push --dry-run "https://github.com/${repo}.git" "HEAD:refs/heads/sync-token-check/dry-run"; then
+              push_ok="✅"
+            else
+              status=1
+            fi
+            echo "| ${repo} | ${read_ok} | ${push_ok} |" >> "$GITHUB_STEP_SUMMARY"
+          done
+          if [ "$status" -ne 0 ]; then
+            echo "::error::只读检查未通过：确认令牌授权了这两个仓库，并有 Contents 写权限"
+          fi
+          exit "$status"
+
+      - name: 完整检查
+        if: env.FULL == 'true'
+        run: |
+          set -uo pipefail
+          status=0
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| 仓库 | 推送分支（Contents） | 改动 workflow（Workflows） | 开草稿 PR（Pull requests） | 清理 |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|---|---|---|" >> "$GITHUB_STEP_SUMMARY"
+          for release in backends/*/release.json; do
+            repo=$(node -p "require('./${release}').repository")
+            base="sync-token-check/${GITHUB_RUN_ID}-base"
+            head="sync-token-check/${GITHUB_RUN_ID}-head"
+            work=$(mktemp -d)
+            contents="❌"; workflows="❌"; pulls="❌"; cleanup="✅"
+            pr=""
+
+            if gh repo clone "${repo}" "$work" -- --depth 1 -q \
+              && git -C "$work" push -q origin "HEAD:refs/heads/${base}"; then
+              contents="✅"
+              git -C "$work" checkout -q -b "$head"
+              echo "# sync token check ${GITHUB_RUN_ID}" >> "$work/.github/workflows/build.yml"
+              git -C "$work" commit -q -am "令牌自检：临时改动 workflow（将自动删除）"
+              if git -C "$work" push -q origin "HEAD:refs/heads/${head}"; then
+                workflows="✅"
+                if pr=$(gh pr create --repo "${repo}" --draft --base "${base}" --head "${head}" \
+                    --title "[自检] SYNC_TOKEN 权限检查（将自动关闭）" \
+                    --body "btui 的令牌自检 workflow 创建，检查完成后自动关闭并删除分支。不指向 main，不会触发构建或发布。"); then
+                  pulls="✅"
+                else
+                  status=1
+                fi
+              else
+                status=1
+              fi
+            else
+              status=1
+            fi
+
+            # 清理：关闭 PR、删除两个临时分支（不存在时忽略）
+            if [ -n "$pr" ]; then
+              gh pr close "$pr" --repo "${repo}" --comment "令牌自检完成，自动关闭。" || cleanup="⚠️"
+            fi
+            for branch in "$head" "$base"; do
+              if git ls-remote --exit-code --heads "https://github.com/${repo}.git" "refs/heads/${branch}" >/dev/null; then
+                git -C "$work" push -q origin --delete "$branch" || cleanup="⚠️"
+              fi
+            done
+            if [ "$cleanup" != "✅" ]; then
+              echo "::warning::${repo} 的临时 PR 或分支未能清理，请手动删除 sync-token-check/${GITHUB_RUN_ID}-*"
+            fi
+            echo "| ${repo} | ${contents} | ${workflows} | ${pulls} | ${cleanup} |" >> "$GITHUB_STEP_SUMMARY"
+          done
+          if [ "$status" -ne 0 ]; then
+            echo "::error::完整检查未通过：对照表格补齐令牌的 Contents / Workflows / Pull requests 写权限"
+          fi
+          exit "$status"
