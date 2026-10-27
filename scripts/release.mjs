@@ -142,7 +142,9 @@ function openPullRequest({ release, target }, version, autoMerge) {
   run("gh", ["repo", "clone", release.repository, workdir, "--", "--depth", "50"])
   const synced = path.join(workdir, ".github", "SYNCED_FROM")
   const log = run("git", ["log", "--format=%H %s", "-n", "20"], workdir)
-  if (existsSync(synced)) {
+  // Decide before the new tree (which carries its own SYNCED_FROM) is copied in.
+  const firstSync = !existsSync(synced)
+  if (!firstSync) {
     // Stop if the target repo has commits that did not come from this sync, so they are never overwritten.
     const manual = run("git", ["log", "--format=%H", `${run("git", ["log", "-n", "1", "--format=%H", "--", ".github/SYNCED_FROM"], workdir).trim()}..HEAD`], workdir).trim()
     if (manual) throw new Error(`${release.repository} has commits after the last sync; port them first:\n${manual}`)
@@ -157,7 +159,7 @@ function openPullRequest({ release, target }, version, autoMerge) {
   run("git", ["push", "-u", "origin", branch], workdir)
 
   // The first sync restructures the whole repository, so it always waits for a human review.
-  const merge = autoMerge && existsSync(synced)
+  const merge = autoMerge && !firstSync
   const body = merge
     ? "由统一源码仓同步生成，检查通过后自动 squash merge；合并后 auto-release.yml 自动打标签并发布 Docker Hub / GHCR。"
     : "由统一源码仓同步生成。合并后 auto-release.yml 自动打标签并发布 Docker Hub / GHCR。"
@@ -172,19 +174,36 @@ function openPullRequest({ release, target }, version, autoMerge) {
   console.log("  merged; auto-release.yml will tag and publish")
 }
 
+function readChecks(prUrl, cwd) {
+  // `gh pr checks` exits non-zero while no checks are registered yet; treat that as "none".
+  try {
+    return JSON.parse(run("gh", ["pr", "checks", prUrl, "--json", "name,bucket"], cwd) || "[]")
+  } catch {
+    return []
+  }
+}
+
+const sleep = (ms) => execFileSync(process.execPath, ["-e", `setTimeout(() => {}, ${ms})`])
+
 function waitForChecks(prUrl, cwd) {
-  // Checks take a few seconds to register after the push; `gh pr checks` fails while none exist.
   for (let attempt = 0; attempt < 30; attempt += 1) {
+    const checks = readChecks(prUrl, cwd)
+    if (checks.length === 0) {
+      sleep(10000)
+      continue
+    }
     try {
       execFileSync("gh", ["pr", "checks", prUrl, "--watch", "--fail-fast", "--interval", "20"], { cwd, stdio: "inherit" })
-      return
-    } catch (error) {
-      const pending = run("gh", ["pr", "checks", prUrl, "--json", "state", "--jq", "length"], cwd).trim()
-      if (pending !== "0") throw new Error(`checks failed on ${prUrl}; not merging`, { cause: error })
-      execFileSync(process.execPath, ["-e", "setTimeout(() => {}, 10000)"])
+    } catch {
+      // Inspect the final state below instead of trusting the exit code alone.
     }
+    const finished = readChecks(prUrl, cwd)
+    const failed = finished.filter((check) => check.bucket === "fail" || check.bucket === "cancel")
+    if (failed.length) throw new Error(`checks failed on ${prUrl} (${failed.map((check) => check.name).join(", ")}); not merging`)
+    if (finished.length && finished.every((check) => check.bucket === "pass" || check.bucket === "skipping")) return
+    sleep(10000)
   }
-  throw new Error(`no checks reported on ${prUrl} after 5 minutes; not merging`)
+  throw new Error(`checks on ${prUrl} did not finish after the wait limit; not merging`)
 }
 
 function isReleased(release, version) {
