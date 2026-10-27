@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import type { ApplicationPreferences, Session, TorrentFilePriority, TorrentPieceState } from "@/lib/rpc-types";
+import type { ApplicationPreferences, Session, TorrentCreatorTask, TorrentFilePriority, TorrentPieceState } from "@/lib/rpc-types";
 import { MOCK_SESSION, MOCK_STATS, MOCK_TORRENTS } from "@/lib/mock-data";
 import { APP_CONFIG } from "./config";
 
@@ -121,6 +121,9 @@ class QBittorrentRPCMock {
         } as any; // 500GB free / 1TB total
       case "port-test":
         return { "port-is-open": true } as any;
+      case "torrent-verify":
+      case "torrent-reannounce":
+        return {} as any;
       default:
         throw new Error(`RPC Method ${method} not implemented in mock`);
     }
@@ -217,6 +220,70 @@ class QBittorrentRPCMock {
   async portTest() {
     return this.request<{ "port-is-open": boolean }>("port-test");
   }
+
+  async verifyTorrents(ids?: string[]) {
+    return this.request("torrent-verify", { ids });
+  }
+
+  async reannounceTorrents(ids?: string[]) {
+    return this.request("torrent-reannounce", { ids });
+  }
+
+  async setForceStart(ids: string[], value: boolean) {
+    this.updateTorrents(ids, (torrent) => { torrent.forceStart = value; });
+  }
+
+  async toggleSequentialDownload(ids: string[]) {
+    this.updateTorrents(ids, (torrent) => { torrent.sequentialDownload = !torrent.sequentialDownload; });
+  }
+
+  async toggleFirstLastPiecePriority(ids: string[]) {
+    this.updateTorrents(ids, (torrent) => { torrent.firstLastPiecePriority = !torrent.firstLastPiecePriority; });
+  }
+
+  async setSuperSeeding(ids: string[], value: boolean) {
+    this.updateTorrents(ids, (torrent) => { torrent.superSeeding = value; });
+  }
+
+  async setAutoManagement(ids: string[], enable: boolean) {
+    this.updateTorrents(ids, (torrent) => { torrent.autoManagement = enable; });
+  }
+
+  async changeQueuePriority() {}
+
+  async setTorrentSavePath(ids: string[], path: string) {
+    this.updateTorrents(ids, (torrent) => { torrent.downloadDir = path; });
+  }
+
+  async setTorrentDownloadPath(ids: string[], path: string) {
+    this.updateTorrents(ids, (torrent) => { torrent.downloadPath = path; });
+  }
+
+  async exportTorrent(id: string): Promise<{ blob: Blob; filename: string }> {
+    return { blob: mockTorrentFile(id), filename: `${id}.torrent` };
+  }
+
+  async createTorrent(): Promise<{ taskID: string }> {
+    return { taskID: `mock-${Date.now()}` };
+  }
+
+  async getTorrentCreatorTask(taskID: string): Promise<TorrentCreatorTask> {
+    return { taskID, sourcePath: "/downloads/demo", status: "Finished", progress: 100 };
+  }
+
+  async downloadCreatedTorrent(taskID: string): Promise<{ blob: Blob; filename: string }> {
+    return { blob: mockTorrentFile(taskID), filename: `${taskID}.torrent` };
+  }
+
+  async deleteTorrentCreatorTask(): Promise<void> {}
+
+  private updateTorrents(ids: string[], update: (torrent: (typeof MOCK_TORRENTS)[number]) => void) {
+    MOCK_TORRENTS.filter((torrent) => ids.includes(torrent.id) || ids.includes(torrent.hashString)).forEach(update);
+  }
+}
+
+function mockTorrentFile(name: string) {
+  return new Blob([`d4:infod4:name${name.length}:${name}ee`], { type: "application/x-bittorrent" });
 }
 
 export const rpc = new QBittorrentRPCMock();

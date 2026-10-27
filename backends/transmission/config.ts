@@ -16,4 +16,13 @@ export const APP_CONFIG = {
     format: "transmission-next-vibemod-settings",
     key: "transmission",
   },
+  // Transmission RPC has no equivalent for these; the real client rejects or ignores them.
+  capabilities: {
+    autoManagement: false,
+    piecePriorityToggles: false,
+    superSeeding: false,
+    separateDownloadPath: false,
+    categories: false,
+    advancedAddOptions: false,
+  },
 } satisfies BackendConfig

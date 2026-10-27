@@ -176,10 +176,7 @@ export function AllPreferencesPanel() {
     } catch (error) {
       console.error(`Failed to save ${APP_CONFIG.backendName} preferences:`, error)
       toast.error(t("settings.all.save_failed", "保存偏好设置失败"), {
-        description: t(
-          "settings.all.save_failed_desc",
-          "连接可能已被 WebUI 或网络设置更改中断，请检查 qBittorrent。",
-        ),
+        description: t("settings.all.save_failed_desc"),
       })
     } finally {
       setSaving(false)
@@ -310,7 +307,7 @@ export function AllPreferencesPanel() {
         <CardContent className="flex min-h-72 items-center justify-center">
           <div className="flex items-center gap-3 text-sm text-muted-foreground">
             <RefreshCw className="h-4 w-4 animate-spin" />
-            {t("settings.all.loading", "正在读取 qBittorrent 全部偏好设置…")}
+            {t("settings.all.loading")}
           </div>
         </CardContent>
       </Card>
@@ -325,13 +322,10 @@ export function AllPreferencesPanel() {
             <div>
               <CardTitle className="flex items-center gap-2 text-lg md:text-xl">
                 <SlidersHorizontal className="h-5 w-5 text-primary" />
-                {t("settings.all.title", "全部 qBittorrent 偏好设置")}
+                {t("settings.all.title")}
               </CardTitle>
               <CardDescription className="mt-2 max-w-3xl text-xs leading-relaxed md:text-sm">
-                {t(
-                  "settings.all.desc",
-                  "按服务器实际返回值展示所有配置项；字段数量会随 qBittorrent 版本和平台变化。",
-                )}
+                {t("settings.all.desc")}
               </CardDescription>
             </div>
             <Button
@@ -350,10 +344,7 @@ export function AllPreferencesPanel() {
             <div className="flex items-start gap-3">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
               <p>
-                {t(
-                  "settings.all.warning",
-                  "修改 WebUI 地址、端口、认证、HTTPS、代理或备用界面路径可能立即中断当前连接。保存前请确认仍有其他方式访问 qBittorrent。",
-                )}
+                {t("settings.all.warning")}
               </p>
             </div>
           </div>
@@ -520,7 +511,7 @@ export function AllPreferencesPanel() {
           {hasParseErrors
             ? t("settings.all.fix_json", "请先修复无效的 JSON 字段。")
             : hasCriticalChanges
-              ? t("settings.all.critical_changes", "包含可能中断连接的 WebUI 或代理设置。")
+              ? t("settings.all.critical_changes")
               : t("settings.all.pending", "待保存 {{count}} 项更改。")
                   .replace("{{count}}", String(changedKeys.size))}
         </div>
